@@ -8,6 +8,7 @@ import { handleIngest } from "./ingestion";
 import { handleChat } from "./chat";
 import { handleExplain } from "./explain";
 import { adminRoutes } from "./admin";
+import { serveStaticAsset, isAdminStaticRequest } from "./staticAssets";
 
 type AppEnv = { Bindings: Env; Variables: { tenant: TenantConfig } };
 
@@ -25,6 +26,12 @@ app.get("/health", async (c) => {
 });
 
 app.route("/admin", adminRoutes);
+
+// The admin hostname has no tenant row, so its dashboard SPA must be served before tenant resolution.
+app.use("*", async (c, next) => {
+  if (isAdminStaticRequest(c.req.raw, c.env)) return serveStaticAsset(c.req.raw, c.env);
+  await next();
+});
 
 app.use("*", async (c, next) => {
   const url = new URL(c.req.url);
@@ -88,5 +95,8 @@ app.post("/api/ingest", (c) => handleIngest(c.req.raw, c.env, c.get("tenant"), c
 app.post("/api/chat", (c) => handleChat(c.req.raw, c.env, c.get("tenant"), c.executionCtx as ExecutionContext));
 
 app.post("/api/explain", (c) => handleExplain(c.req.raw, c.env, c.get("tenant"), c.executionCtx as ExecutionContext));
+
+// Last route: anything the API did not match gets the SPA (with client-side routing fallback).
+app.get("*", (c) => serveStaticAsset(c.req.raw, c.env));
 
 export default app;

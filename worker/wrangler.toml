@@ -26,6 +26,13 @@ binding = "AI"
 [browser]
 binding = "BROWSER"
 
+# Static SPAs (built into worker/public/ by scripts/build-and-deploy.sh).
+# The worker runs first so it can pick the student vs dashboard SPA by hostname.
+[assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+
 # Local dev: `wrangler dev --env dev`. Enables the ?tenant= / X-Tenant override.
 # Bindings are not inherited by named environments, so they are redeclared here.
 [env.dev.vars]
@@ -51,3 +58,8 @@ binding = "AI"
 
 [env.dev.browser]
 binding = "BROWSER"
+
+[env.dev.assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true

@@ -4,6 +4,7 @@ export interface Env {
   PDF_BUCKET: R2Bucket;
   AI: Ai;
   BROWSER: Fetcher;
+  ASSETS: Fetcher;
   OPENROUTER_API_KEY: string;
   ADMIN_API_KEY: string;
   INGEST_API_KEY: string;

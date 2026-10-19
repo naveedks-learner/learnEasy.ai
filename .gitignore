@@ -35,3 +35,6 @@ coverage/
 # Temp
 *.tmp
 *.log
+
+# Combined static build staged for the worker
+worker/public/
