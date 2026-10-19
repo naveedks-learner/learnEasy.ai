@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "./env";
+import { corsMiddleware } from "./cors";
 import { resolveTenant, UnknownTenantError, type TenantConfig } from "./tenant";
 
 type AppEnv = { Bindings: Env; Variables: { tenant: TenantConfig } };
@@ -20,6 +21,8 @@ app.use("*", async (c, next) => {
   }
   await next();
 });
+
+app.use("*", corsMiddleware);
 
 app.get("/api/tenant", (c) => {
   const { tenantId, name, logoUrl, theme } = c.get("tenant");
