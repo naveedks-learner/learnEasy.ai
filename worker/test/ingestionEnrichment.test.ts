@@ -19,6 +19,16 @@ describe("parseEnrichedPages", () => {
     expect(result[1].text).toBe("plain 2");
   });
 
+  it("ignores enriched markers for pages not in plainPages", () => {
+    const enriched = "<<<PAGE 1>>>\nE1\n<<<PAGE 2>>>\nE2\n<<<PAGE 3>>>\nE3";
+    const plain = [{ page: 1, text: "plain 1" }, { page: 2, text: "plain 2" }];
+    const result = parseEnrichedPages(enriched, plain);
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.page)).toEqual([1, 2]);
+    expect(result[0].text).toBe("E1");
+    expect(result[1].text).toBe("E2");
+  });
+
   it("never throws — returns plain pages on garbage input", () => {
     const plain = [{ page: 1, text: "plain 1" }];
     expect(parseEnrichedPages("", plain)).toEqual(plain);
