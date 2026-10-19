@@ -34,7 +34,7 @@ export interface ExplainResponse {
   steps: string[] | null;
   formula: string | null;
   definition: string | null;
-  table: { headers: string[]; rows: string[][] } | null;
+  table: string | null;
   realWorldExample: string | null;
   groundedIn?: "documents" | "general_knowledge" | "both";
 }

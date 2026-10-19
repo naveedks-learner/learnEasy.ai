@@ -12,6 +12,42 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function splitRow(line: string): string[] {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+}
+
+function MarkdownTable({ text }: { text: string }) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const isSep = (l: string) => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(l);
+  if (lines.length < 2 || !lines[0].includes("|") || !isSep(lines[1])) {
+    return <pre className="overflow-x-auto whitespace-pre text-sm">{text}</pre>;
+  }
+  const headers = splitRow(lines[0]);
+  const rows = lines.slice(2).map(splitRow);
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            {headers.map((h, i) => (
+              <th key={i} className="border border-slate-300 bg-slate-100 px-2 py-1 text-left"><Latex text={h} /></th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i}>
+              {row.map((c, j) => (
+                <td key={j} className="border border-slate-300 px-2 py-1"><Latex text={c} /></td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function ExplainerPage() {
   const [concept, setConcept] = useState("");
   const [result, setResult] = useState<ExplainResponse | null>(null);
@@ -77,28 +113,9 @@ export function ExplainerPage() {
               </ol>
             </Section>
           )}
-          {r.table && r.table.headers && (
+          {r.table && (
             <Section title="Table">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm border-collapse">
-                  <thead>
-                    <tr>
-                      {r.table.headers.map((h, i) => (
-                        <th key={i} className="border border-slate-300 bg-slate-100 px-2 py-1 text-left">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(r.table.rows ?? []).map((row, i) => (
-                      <tr key={i}>
-                        {row.map((c, j) => (
-                          <td key={j} className="border border-slate-300 px-2 py-1">{c}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <MarkdownTable text={r.table} />
             </Section>
           )}
           {r.realWorldExample && (
