@@ -3,6 +3,8 @@ import type { Env } from "./env";
 import { corsMiddleware } from "./cors";
 import { resolveTenant, UnknownTenantError, type TenantConfig } from "./tenant";
 
+import { handleIngest } from "./ingestion";
+
 type AppEnv = { Bindings: Env; Variables: { tenant: TenantConfig } };
 
 const app = new Hono<AppEnv>();
@@ -28,5 +30,7 @@ app.get("/api/tenant", (c) => {
   const { tenantId, name, logoUrl, theme } = c.get("tenant");
   return c.json({ tenantId, name, logoUrl, theme });
 });
+
+app.post("/api/ingest", (c) => handleIngest(c.req.raw, c.env, c.get("tenant"), c.executionCtx as ExecutionContext));
 
 export default app;
