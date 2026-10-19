@@ -22,22 +22,20 @@ async function deleteByPrefix(bucket: R2Bucket, prefix: string): Promise<void> {
   } while (cursor);
 }
 
-async function deleteExistingDocument(
+async function deleteStaleArtifacts(
   env: Env,
   storage: TenantStorage,
   filename: string,
+  newChunkCount: number,
   oldChunkCount: number,
 ): Promise<void> {
   const ids: string[] = [];
-  for (let i = 0; i < oldChunkCount; i++) ids.push(storage.vectorId(filename, i));
+  for (let i = newChunkCount; i < oldChunkCount; i++) ids.push(storage.vectorId(filename, i));
   for (let i = 0; i < ids.length; i += UPSERT_BATCH) {
     await env.VECTORIZE.deleteByIds(ids.slice(i, i + UPSERT_BATCH));
   }
   await deleteByPrefix(env.PDF_BUCKET, storage.r2Key("images", filename) + "/");
-  await env.PDF_BUCKET.delete([
-    storage.r2Key("cleaned", filename + ".md"),
-    storage.r2Key("docs", filename),
-  ]);
+  await env.PDF_BUCKET.delete(storage.r2Key("cleaned", filename + ".md"));
 }
 
 export async function handleIngest(
@@ -69,11 +67,11 @@ export async function handleIngest(
   }
 
   const docKey = storage.r2Key("docs", filename);
+  let oldChunkCount = 0;
   const existing = await env.PDF_BUCKET.head(docKey);
   if (existing) {
     if (!force) return json({ skipped: true, filename });
-    const oldCount = Number(existing.customMetadata?.chunkCount ?? 0) || 0;
-    await deleteExistingDocument(env, storage, filename, oldCount);
+    oldChunkCount = Number(existing.customMetadata?.chunkCount ?? 0) || 0;
   }
 
   let pages: Array<{ page: number; text: string }>;
@@ -99,29 +97,32 @@ export async function handleIngest(
   const chunks = chunkText(pages);
   if (chunks.length === 0) return json({ error: "No extractable text in PDF" }, 422);
 
-  const vectors: VectorizeVector[] = [];
-  for (const chunk of chunks) {
-    const out = (await env.AI.run(EMBED_MODEL, { text: chunk.text })) as { data?: number[][] };
-    const values = out.data?.[0];
-    if (!values) return json({ error: "Embedding failed" }, 502);
-    const base: Record<string, string> = {
+  const embeddings: number[][] = [];
+  for (let i = 0; i < chunks.length; i += UPSERT_BATCH) {
+    const texts = chunks.slice(i, i + UPSERT_BATCH).map((c) => c.text);
+    const out = (await env.AI.run(EMBED_MODEL, { text: texts })) as { data?: number[][] };
+    if (!out.data || out.data.length !== texts.length) return json({ error: "Embedding failed" }, 502);
+    embeddings.push(...out.data);
+  }
+
+  // pageImageKey is intentionally not emitted: screenshots are not captured yet, so it would dangle.
+  const vectors: VectorizeVector[] = chunks.map((chunk, i) => ({
+    id: storage.vectorId(filename, chunk.chunkIndex),
+    values: embeddings[i],
+    metadata: storage.vectorMeta({
       filename,
       text: chunk.text,
       startPage: String(chunk.startPage),
       endPage: String(chunk.endPage),
       chunkIndex: String(chunk.chunkIndex),
-    };
-    if (chunk.pageImageKey) base.pageImageKey = storage.r2Key("images", filename, chunk.pageImageKey);
-    vectors.push({
-      id: storage.vectorId(filename, chunk.chunkIndex),
-      values,
-      metadata: storage.vectorMeta(base),
-    });
-  }
+    }),
+  }));
 
   for (let i = 0; i < vectors.length; i += UPSERT_BATCH) {
     await env.VECTORIZE.upsert(vectors.slice(i, i + UPSERT_BATCH));
   }
+
+  if (existing) await deleteStaleArtifacts(env, storage, filename, chunks.length, oldChunkCount);
 
   // Written last so a failed ingest never leaves a "already indexed" marker behind.
   const enriched = enrichedFullText !== null;
