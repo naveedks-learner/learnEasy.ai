@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { handleChat } from "../src/chat";
 import { DEFAULT_FEATURES, DEFAULT_RATE_LIMITS, DEFAULT_THEME, type TenantConfig } from "../src/tenant";
 
@@ -47,7 +47,7 @@ function mockChatEnv(o: MockOpts): any {
   };
 }
 
-function mockTenant(tenantId: string): TenantConfig {
+function mockTenant(tenantId: string, webSearchEnabled = false): TenantConfig {
   return {
     tenantId,
     name: "School",
@@ -55,7 +55,7 @@ function mockTenant(tenantId: string): TenantConfig {
     theme: DEFAULT_THEME,
     allowedOrigins: [],
     domain: "x.test",
-    features: { ...DEFAULT_FEATURES, webSearchEnabled: false },
+    features: { ...DEFAULT_FEATURES, webSearchEnabled },
     rateLimits: DEFAULT_RATE_LIMITS,
   };
 }
@@ -73,6 +73,8 @@ function chatRequest(question: string, extra: Record<string, unknown> = {}): Req
 }
 
 describe("handleChat", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("returns an answer using the full pipeline", async () => {
     const env = mockChatEnv({
       vectorizeResults: [
@@ -130,5 +132,33 @@ describe("handleChat", () => {
   it("rejects a missing question", async () => {
     const res = await handleChat(chatRequest(""), mockChatEnv({}), mockTenant("t1"), mockCtx());
     expect(res.status).toBe(400);
+  });
+  it("falls back to web search when no documents are kept, and still calls the LLM", async () => {
+    const ddg = '<a class="result__a" href="https://example.com/x">Force</a><a class="result__snippet">Force is a push or pull</a>';
+    vi.stubGlobal("fetch", async () => new Response(ddg));
+    let llmCalls = 0;
+    const env = mockChatEnv({ llmResponse: "From the web" });
+    const baseRun = env.AI.run;
+    env.AI.run = async (model: string, input: any) => {
+      if (!model.includes("bge") && !model.includes("reranker")) llmCalls++;
+      return baseRun(model, input);
+    };
+    const res = await handleChat(chatRequest("q"), env, mockTenant("t1", true), mockCtx());
+    const body = (await res.json()) as any;
+    expect(body.docSources).toHaveLength(0);
+    expect(body.webSources).toHaveLength(1);
+    expect(body.webSources[0].url).toBe("https://example.com/x");
+    expect(body.answer).toBe("From the web");
+    expect(llmCalls).toBe(1);
+  });
+
+  it("propagates LLM errors instead of swallowing them", async () => {
+    const env = mockChatEnv({});
+    const baseRun = env.AI.run;
+    env.AI.run = async (model: string, input: any) => {
+      if (!model.includes("bge") && !model.includes("reranker")) throw new Error("llm down");
+      return baseRun(model, input);
+    };
+    await expect(handleChat(chatRequest("q"), env, mockTenant("t1"), mockCtx())).rejects.toThrow("llm down");
   });
 });
