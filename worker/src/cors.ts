@@ -12,6 +12,7 @@ export function buildCorsHeaders(
     "Access-Control-Allow-Headers":
       "Content-Type, X-Tenant, x-admin-key, x-ingest-key, Authorization",
     "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
   };
   if (!origin) return headers;
 
@@ -29,7 +30,6 @@ export function buildCorsHeaders(
 
   if (allowed) {
     headers["Access-Control-Allow-Origin"] = origin;
-    headers["Vary"] = "Origin";
   }
   return headers;
 }
