@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTenant } from "./hooks/useTenant";
 import { TenantThemeProvider } from "./theme/TenantThemeProvider";
 import { Header } from "./components/common/Header";
+import { ConsentBanner } from "./components/common/ConsentBanner";
 import { LoadingSpinner } from "./components/common/LoadingSpinner";
 import { ChatPage } from "./components/Chat/ChatPage";
 import { ExplainerPage } from "./components/ConceptExplainer/ExplainerPage";
@@ -41,6 +42,7 @@ export default function App() {
           </>
         )}
       </div>
+      <ConsentBanner />
     </TenantThemeProvider>
   );
 }

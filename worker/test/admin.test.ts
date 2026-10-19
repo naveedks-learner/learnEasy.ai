@@ -53,7 +53,7 @@ function makeEnv(opts: { tenants?: Record<string, unknown>[]; r2Objects?: any[] 
           if (sql.startsWith("INSERT INTO tenants")) {
             tenants.push({ tenant_id: args[0], name: args[1], domain: args[2] });
           }
-          return { success: true };
+          return { success: true, meta: { changes: sql.startsWith("DELETE FROM") ? 2 : 0 } };
         },
       };
       return stmt;
@@ -64,6 +64,7 @@ function makeEnv(opts: { tenants?: Record<string, unknown>[]; r2Objects?: any[] 
     },
   };
   const listCalls: any[] = [];
+  const deletedKeys: string[] = [];
   const PDF_BUCKET = {
     async list(o: any) {
       listCalls.push(o);
@@ -72,11 +73,15 @@ function makeEnv(opts: { tenants?: Record<string, unknown>[]; r2Objects?: any[] 
     async get(key: string) {
       return key === "t/school-a/cleaned/a.pdf.md" ? { text: async () => "# cleaned" } : null;
     },
+    async delete(keys: string | string[]) {
+      deletedKeys.push(...(Array.isArray(keys) ? keys : [keys]));
+    },
   };
   return {
     env: { DB, PDF_BUCKET, ADMIN_API_KEY: "test-admin-key", ADMIN_HOSTNAME: "", ENVIRONMENT: "production" } as any,
     calls,
     listCalls,
+    deletedKeys,
   };
 }
 
@@ -112,6 +117,62 @@ describe("admin routes", () => {
     expect(res.status).toBe(200);
     expect(calls.some((c) => c.sql.startsWith("DELETE FROM config"))).toBe(true);
     expect(calls.some((c) => c.sql.startsWith("DELETE FROM tenants"))).toBe(true);
+  });
+
+  it("DELETE /admin/tenants/:id/purge-data erases tenant data but keeps the tenant row", async () => {
+    const { env, calls, deletedKeys } = makeEnv({
+      tenants: [{ tenant_id: "a", name: "A", domain: "a.com" }],
+      r2Objects: [
+        { key: "t/a/docs/x.pdf", size: 1, uploaded: "x" },
+        { key: "t/a/images/x.pdf/1.png", size: 1, uploaded: "x" },
+        { key: "t/a/cleaned/x.pdf.md", size: 1, uploaded: "x" },
+        { key: "t/ab/docs/other.pdf", size: 1, uploaded: "x" },
+      ],
+    });
+    expect((await callAdmin("DELETE", "/admin/tenants/zzz/purge-data", { key: "test-admin-key" }, env)).status).toBe(404);
+    expect((await callAdmin("DELETE", "/admin/tenants/a/purge-data", {}, env)).status).toBe(401);
+    const res = await callAdmin("DELETE", "/admin/tenants/a/purge-data", { key: "test-admin-key" }, env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      deleted: { transactions: 2, config: 2, rateLimits: 2, r2Objects: 3 },
+    });
+    for (const table of ["transactions", "config", "rate_limits", "question_paper_cache"]) {
+      expect(calls.some((c) => c.sql.startsWith(`DELETE FROM ${table}`) && c.args[0] === "a")).toBe(true);
+    }
+    expect(calls.some((c) => c.sql.startsWith("DELETE FROM tenants"))).toBe(false);
+    expect(deletedKeys.sort()).toEqual(["t/a/cleaned/x.pdf.md", "t/a/docs/x.pdf", "t/a/images/x.pdf/1.png"]);
+  });
+
+  it("PUT /admin/config validates dataRetentionDays", async () => {
+    const { env } = makeEnv();
+    for (const value of ["0", "-5", "1.5", "abc"]) {
+      const res = await callAdmin(
+        "PUT",
+        "/admin/config?tenant_id=school-a",
+        { key: "test-admin-key", body: { key: "dataRetentionDays", value } },
+        env,
+      );
+      expect(res.status).toBe(400);
+    }
+    const ok = await callAdmin(
+      "PUT",
+      "/admin/config?tenant_id=school-a",
+      { key: "test-admin-key", body: { key: "dataRetentionDays", value: 30 } },
+      env,
+    );
+    expect(ok.status).toBe(200);
+  });
+
+  it("GET /privacy serves HTML without a tenant", async () => {
+    const { env } = makeEnv();
+    const res = await app.fetch(new Request("https://unknown.example.com/privacy"), env, {
+      waitUntil() {},
+      passThroughOnException() {},
+    } as any);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(await res.text()).toContain("Privacy Policy");
   });
 
   it("PUT /admin/tenants/:id updates name and domain", async () => {

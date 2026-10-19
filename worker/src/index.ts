@@ -8,6 +8,8 @@ import { handleIngest } from "./ingestion";
 import { handleChat } from "./chat";
 import { handleExplain } from "./explain";
 import { adminRoutes } from "./admin";
+import { privacyPage } from "./privacy";
+import { cleanupExpiredData } from "./retention";
 import { serveStaticAsset, isAdminStaticRequest } from "./staticAssets";
 
 type AppEnv = { Bindings: Env; Variables: { tenant: TenantConfig } };
@@ -24,6 +26,9 @@ app.get("/health", async (c) => {
   }
   return c.json({ ok: true, tenantCount });
 });
+
+// Public, tenant-independent (registered before tenant resolution, like /health).
+app.get("/privacy", () => privacyPage());
 
 app.route("/admin", adminRoutes);
 
@@ -105,4 +110,15 @@ app.get("*", async (c) => {
   return serveStaticAsset(c.req.raw, c.env);
 });
 
-export default app;
+// Workers module export: Hono's app already exposes fetch; add the cron handler beside it.
+// (Object.assign keeps app.request etc. available to tests.)
+export default Object.assign(app, {
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(
+      cleanupExpiredData(env).then(
+        (result) => console.log("retention cleanup", JSON.stringify(result)),
+        (err) => console.error("retention cleanup failed", err),
+      ),
+    );
+  },
+});

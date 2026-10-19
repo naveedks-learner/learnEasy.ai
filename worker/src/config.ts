@@ -14,6 +14,7 @@ export interface RuntimeConfig {
   conceptExplainerEnabled: boolean;
   questionPaperModelSlug: string | null;
   answerStyle: "auto" | "short" | "detailed";
+  dataRetentionDays: number;
 }
 
 export const DEFAULTS: RuntimeConfig = {
@@ -32,6 +33,7 @@ export const DEFAULTS: RuntimeConfig = {
   conceptExplainerEnabled: true,
   questionPaperModelSlug: null,
   answerStyle: "auto",
+  dataRetentionDays: 90,
 };
 
 const ENUMS: Record<string, readonly string[]> = {

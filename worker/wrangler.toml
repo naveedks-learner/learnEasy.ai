@@ -6,6 +6,9 @@ compatibility_date = "2024-09-23"
 ENVIRONMENT = "production"
 ADMIN_HOSTNAME = "admin.learneasy.ai"
 
+[triggers]
+crons = ["0 3 * * *"]  # daily at 3 AM UTC
+
 [[d1_databases]]
 binding = "DB"
 database_name = "learneasy-db"
@@ -39,6 +42,9 @@ run_worker_first = true
 ENVIRONMENT = "development"
 ADMIN_HOSTNAME = "admin.localhost:8787"
 
+[env.dev.triggers]
+crons = ["0 3 * * *"]
+
 [[env.dev.d1_databases]]
 binding = "DB"
 database_name = "learneasy-db"
@@ -69,6 +75,9 @@ run_worker_first = true
 [env.staging.vars]
 ENVIRONMENT = "staging"
 ADMIN_HOSTNAME = "admin-staging.learneasy.ai"
+
+[env.staging.triggers]
+crons = ["0 3 * * *"]
 
 [[env.staging.d1_databases]]
 binding = "DB"

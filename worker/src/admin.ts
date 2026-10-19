@@ -20,6 +20,7 @@ function validateConfigValue(key: keyof typeof DEFAULTS, value: string): boolean
   if (typeof def === "number") {
     const n = Number(value);
     if (value.trim() === "" || !Number.isFinite(n)) return false;
+    if (key === "dataRetentionDays") return Number.isInteger(n) && n >= 1;
     return key === "topK" ? Number.isInteger(n) && n >= 0 : true;
   }
   if (typeof def === "boolean") return value === "true" || value === "false";
@@ -141,6 +142,41 @@ adminRoutes.delete("/tenants/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM tenants WHERE tenant_id = ?").bind(id),
   ]);
   return c.json({ ok: true });
+});
+
+/**
+ * Right-to-erasure: removes all of a tenant's data but keeps the tenant record.
+ * NOTE: Vectorize vectors are NOT purged here (vector IDs are hashed per document and not
+ * enumerable without a listing). They must be purged manually or are overwritten on next ingest.
+ */
+adminRoutes.delete("/tenants/:id/purge-data", async (c) => {
+  const id = c.req.param("id");
+  const existing = await c.env.DB.prepare("SELECT tenant_id FROM tenants WHERE tenant_id = ?").bind(id).first();
+  if (!existing) return c.json({ error: "Tenant not found" }, 404);
+
+  const del = async (table: string): Promise<number> => {
+    const res = await c.env.DB.prepare(`DELETE FROM ${table} WHERE tenant_id = ?`).bind(id).run();
+    return res?.meta?.changes ?? 0;
+  };
+  const transactions = await del("transactions");
+  const config = await del("config");
+  const rateLimits = await del("rate_limits");
+  await del("question_paper_cache");
+
+  let r2Objects = 0;
+  const prefix = `t/${id}/`;
+  let cursor: string | undefined;
+  do {
+    const listed = await c.env.PDF_BUCKET.list({ prefix, cursor });
+    const keys = listed.objects.map((o) => o.key);
+    if (keys.length > 0) {
+      await c.env.PDF_BUCKET.delete(keys);
+      r2Objects += keys.length;
+    }
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+
+  return c.json({ ok: true, deleted: { transactions, config, rateLimits, r2Objects } });
 });
 
 adminRoutes.get("/tenants/:id/stats", async (c) => {
