@@ -63,3 +63,34 @@ binding = "BROWSER"
 directory = "public"
 binding = "ASSETS"
 run_worker_first = true
+
+# Staging: `wrangler deploy --env staging`. Isolated D1/R2/Vectorize; AI and Browser are shared services.
+# Replace the placeholder database_id after `wrangler d1 create learneasy-db-staging`.
+[env.staging.vars]
+ENVIRONMENT = "staging"
+ADMIN_HOSTNAME = "admin-staging.learneasy.ai"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "learneasy-db-staging"
+database_id = "00000000-0000-0000-0000-000000000001"
+migrations_dir = "migrations"
+
+[[env.staging.vectorize]]
+binding = "VECTORIZE"
+index_name = "learneasy-chunks-staging"
+
+[[env.staging.r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "learneasy-pdfs-staging"
+
+[env.staging.ai]
+binding = "AI"
+
+[env.staging.browser]
+binding = "BROWSER"
+
+[env.staging.assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true

@@ -27,3 +27,28 @@ npx wrangler secret put OPENROUTER_API_KEY
 npx wrangler secret put ADMIN_API_KEY
 npx wrangler secret put INGEST_API_KEY
 ```
+
+## Staging
+A separate environment (`[env.staging]` in `worker/wrangler.toml`) with its own D1, R2 and Vectorize
+resources; AI and Browser are shared services. The `?tenant=` / `X-Tenant` override works in staging.
+
+First-time setup (once):
+```bash
+cd worker
+npx wrangler d1 create learneasy-db-staging    # paste database_id into [env.staging] in wrangler.toml
+npx wrangler d1 migrations apply learneasy-db-staging --env staging --remote
+npx wrangler vectorize create learneasy-chunks-staging --dimensions=768 --metric=cosine
+npx wrangler vectorize create-metadata-index learneasy-chunks-staging --property-name=tenantId --type=string
+npx wrangler r2 bucket create learneasy-pdfs-staging
+npx wrangler secret put OPENROUTER_API_KEY --env staging
+npx wrangler secret put ADMIN_API_KEY --env staging
+npx wrangler secret put INGEST_API_KEY --env staging
+```
+
+Deploy:
+```bash
+npm run deploy:staging
+```
+
+- Staging gets its own `*.workers.dev` URL (`learneasy-worker-staging.<account>.workers.dev`).
+- Secrets are per environment and must be set separately: `npx wrangler secret put KEY --env staging`.

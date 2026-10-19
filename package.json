@@ -2,6 +2,7 @@
   "name": "learneasy",
   "private": true,
   "scripts": {
-    "deploy": "bash scripts/build-and-deploy.sh"
+    "deploy": "bash scripts/build-and-deploy.sh",
+    "deploy:staging": "bash scripts/build-and-deploy.sh --staging"
   }
 }

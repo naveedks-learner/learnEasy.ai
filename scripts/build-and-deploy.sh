@@ -7,4 +7,9 @@ find "$ROOT/worker/public" -mindepth 1 ! -name .gitkeep -delete 2>/dev/null || t
 mkdir -p "$ROOT/worker/public/dashboard"
 cp -r "$ROOT/frontend/dist/." "$ROOT/worker/public/"
 cp -r "$ROOT/dashboard/dist/." "$ROOT/worker/public/dashboard/"
-cd "$ROOT/worker" && npx wrangler deploy
+cd "$ROOT/worker"
+if [ "$1" = "--staging" ]; then
+  npx wrangler deploy --env staging
+else
+  npx wrangler deploy
+fi
