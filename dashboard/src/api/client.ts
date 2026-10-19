@@ -74,7 +74,7 @@ export const api = {
     if (force) form.append("force", "true");
     const res = await fetch(`${BASE}/api/ingest?tenant=${encodeURIComponent(id)}`, {
       method: "POST",
-      headers: { "x-ingest-key": ingestKey, "X-Tenant": id },
+      headers: { "x-ingest-key": ingestKey, "x-admin-key": getAdminKey() ?? "", "X-Tenant": id },
       body: form,
     });
     const data = await res.json().catch(() => ({}));
