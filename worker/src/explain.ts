@@ -97,6 +97,7 @@ export async function handleExplain(
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
+  if (!payload || typeof payload !== "object") return json({ error: "missing concept" }, 400);
   const concept = typeof payload.concept === "string" ? payload.concept.trim() : "";
   if (!concept) return json({ error: "concept is required" }, 400);
   if (concept.length > MAX_CONCEPT_CHARS) return json({ error: "concept too long" }, 400);
