@@ -11,8 +11,12 @@ export default function TransactionsTab({ tenantId }: { tenantId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   useEffect(() => {
-    setRows([]); setOpen(null);
-    api.transactions(tenantId).then((r) => { setRows(r); setError(null); }).catch((e) => setError((e as Error).message));
+    let cancelled = false;
+    setRows([]); setOpen(null); setError(null);
+    api.transactions(tenantId)
+      .then((r) => { if (!cancelled) { setRows(r); setError(null); } })
+      .catch((e) => { if (!cancelled) setError((e as Error).message); });
+    return () => { cancelled = true; };
   }, [tenantId]);
 
   return (

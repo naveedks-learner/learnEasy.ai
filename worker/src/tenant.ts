@@ -80,8 +80,10 @@ export class UnknownTenantError extends Error {
 }
 
 export interface ResolveTenantOptions {
-  /** Honoured only when env.ENVIRONMENT === "development". */
+  /** Honoured only when env.ENVIRONMENT === "development" or trustOverride is true. */
   tenantOverride?: string;
+  /** Caller has verified a valid admin key, so the override is honoured in any environment. */
+  trustOverride?: boolean;
 }
 
 /** The one function that maps hostname -> tenant. Throws "Unknown tenant" if none matches. */
@@ -90,7 +92,7 @@ export async function resolveTenant(
   env: Env,
   opts: ResolveTenantOptions = {},
 ): Promise<TenantConfig> {
-  const useOverride = env.ENVIRONMENT === "development" && !!opts.tenantOverride;
+  const useOverride = (env.ENVIRONMENT === "development" || opts.trustOverride === true) && !!opts.tenantOverride;
   const row = useOverride
     ? await env.DB.prepare("SELECT * FROM tenants WHERE tenant_id = ?")
         .bind(opts.tenantOverride)

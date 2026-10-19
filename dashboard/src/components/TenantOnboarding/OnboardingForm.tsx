@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api, type TenantConfig } from "../../api/client";
 
 const slugify = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const MAX_LOGO_BYTES = 256 * 1024;
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const DOMAIN_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
 
@@ -21,6 +22,11 @@ export default function OnboardingForm({ onCreated, onCancel }: {
 
   const onLogo = (file: File | undefined) => {
     if (!file) return setLogoUrl("");
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoUrl("");
+      return setError("Logo must be 256KB or smaller");
+    }
+    setError(null);
     const reader = new FileReader();
     reader.onload = () => setLogoUrl(String(reader.result));
     reader.readAsDataURL(file);

@@ -30,7 +30,8 @@ app.use("*", async (c, next) => {
   const url = new URL(c.req.url);
   const override = c.req.header("X-Tenant") ?? url.searchParams.get("tenant") ?? undefined;
   try {
-    const tenant = await resolveTenant(url.host, c.env, { tenantOverride: override });
+    const adminKeyValid = !!c.env.ADMIN_API_KEY && c.req.header("x-admin-key") === c.env.ADMIN_API_KEY;
+    const tenant = await resolveTenant(url.host, c.env, { tenantOverride: override, trustOverride: adminKeyValid });
     c.set("tenant", tenant);
   } catch (err) {
     if (err instanceof UnknownTenantError) return c.json({ error: "Unknown school" }, 404);

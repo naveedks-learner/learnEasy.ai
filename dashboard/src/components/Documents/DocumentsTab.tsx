@@ -10,10 +10,17 @@ export default function DocumentsTab({ tenantId }: { tenantId: string }) {
   const [modal, setModal] = useState<{ name: string; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(() => {
-    api.documents(tenantId).then((d) => { setDocs(d); setError(null); }).catch((e) => setError((e as Error).message));
+  const load = useCallback((isCancelled: () => boolean = () => false) => {
+    api.documents(tenantId)
+      .then((d) => { if (!isCancelled()) { setDocs(d); setError(null); } })
+      .catch((e) => { if (!isCancelled()) setError((e as Error).message); });
   }, [tenantId]);
-  useEffect(() => { setDocs([]); load(); }, [load]);
+  useEffect(() => {
+    let cancelled = false;
+    setDocs([]); setError(null); setStatus(null);
+    load(() => cancelled);
+    return () => { cancelled = true; };
+  }, [load]);
 
   const upload = async (file: File | undefined) => {
     if (!file) return;

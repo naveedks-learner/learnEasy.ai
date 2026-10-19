@@ -64,4 +64,10 @@ describe("tenant isolation", () => {
     const tenant = await resolveTenant("chat.schoola.com", e, { tenantOverride: "school-b" });
     expect(tenant.tenantId).toBe("school-b");
   });
+
+  it("admin-key-gated override works in production", async () => {
+    const e = { DB: mockDb(), ENVIRONMENT: "production" } as any;
+    const tenant = await resolveTenant("admin.example.com", e, { tenantOverride: "school-b", trustOverride: true });
+    expect(tenant.tenantId).toBe("school-b");
+  });
 });

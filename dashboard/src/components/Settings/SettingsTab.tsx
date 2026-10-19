@@ -41,7 +41,12 @@ function TenantDetails({ tenantId }: { tenantId: string }) {
   const [t, setT] = useState<TenantConfig | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => {
-    api.listTenants().then((all) => setT(all.find((x) => x.tenantId === tenantId) ?? null)).catch((e) => setMsg((e as Error).message));
+    let stale = false;
+    setT(null); setMsg(null);
+    api.listTenants()
+      .then((all) => { if (!stale) setT(all.find((x) => x.tenantId === tenantId) ?? null); })
+      .catch((e) => { if (!stale) setMsg((e as Error).message); });
+    return () => { stale = true; };
   }, [tenantId]);
   if (!t) return msg ? <p className="text-sm text-red-600">{msg}</p> : null;
   const save = async () => {
@@ -70,8 +75,12 @@ export default function SettingsTab({ tenantId }: { tenantId: string }) {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    setConfig(null);
-    api.config(tenantId).then((c) => { setConfig(c); setError(null); }).catch((e) => setError((e as Error).message));
+    let cancelled = false;
+    setConfig(null); setError(null);
+    api.config(tenantId)
+      .then((c) => { if (!cancelled) { setConfig(c); setError(null); } })
+      .catch((e) => { if (!cancelled) setError((e as Error).message); });
+    return () => { cancelled = true; };
   }, [tenantId]);
   return (
     <div>
