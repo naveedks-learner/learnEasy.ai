@@ -6,12 +6,15 @@ import { resolveTenant, UnknownTenantError, type TenantConfig } from "./tenant";
 import { handleIngest } from "./ingestion";
 import { handleChat } from "./chat";
 import { handleExplain } from "./explain";
+import { adminRoutes } from "./admin";
 
 type AppEnv = { Bindings: Env; Variables: { tenant: TenantConfig } };
 
 const app = new Hono<AppEnv>();
 
 app.get("/health", (c) => c.json({ ok: true }));
+
+app.route("/admin", adminRoutes);
 
 app.use("*", async (c, next) => {
   const url = new URL(c.req.url);
