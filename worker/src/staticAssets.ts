@@ -37,6 +37,9 @@ export async function serveStaticAsset(req: Request, env: Env): Promise<Response
   const admin = isAdminHost(req, env);
   const indexPath = admin ? "/dashboard/index.html" : "/index.html";
   let path = new URL(req.url).pathname;
+  if (!admin && (path === "/dashboard" || path.startsWith("/dashboard/"))) {
+    return new Response("Not found", { status: 404 });
+  }
   if (admin && !path.startsWith("/dashboard/")) path = indexPath;
   if (path === "/" || path.endsWith("/")) path += "index.html";
 

@@ -37,4 +37,5 @@ coverage/
 *.log
 
 # Combined static build staged for the worker
-worker/public/
+worker/public/*
+!worker/public/.gitkeep

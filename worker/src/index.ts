@@ -97,6 +97,12 @@ app.post("/api/chat", (c) => handleChat(c.req.raw, c.env, c.get("tenant"), c.exe
 app.post("/api/explain", (c) => handleExplain(c.req.raw, c.env, c.get("tenant"), c.executionCtx as ExecutionContext));
 
 // Last route: anything the API did not match gets the SPA (with client-side routing fallback).
-app.get("*", (c) => serveStaticAsset(c.req.raw, c.env));
+app.get("*", async (c) => {
+  const path = new URL(c.req.url).pathname;
+  if (path.startsWith("/api/") || path.startsWith("/admin/") || path === "/admin") {
+    return c.json({ error: "Not found" }, 404);
+  }
+  return serveStaticAsset(c.req.raw, c.env);
+});
 
 export default app;
