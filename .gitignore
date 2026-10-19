@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+frontend/dist/
+dashboard/dist/
+worker/dist/
+
+# Wrangler
+worker/.wrangler/
+.wrangler/
+.dev.vars
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Test
+coverage/
+
+# Temp
+*.tmp
+*.log
