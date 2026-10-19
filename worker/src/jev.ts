@@ -13,7 +13,7 @@ async function judgeOne(query: string, text: string, env: Env): Promise<{ releva
     body: JSON.stringify({
       model: JEV_MODEL,
       temperature: 0,
-      max_tokens: 60,
+      max_tokens: 256,
       messages: [
         {
           role: "system",
