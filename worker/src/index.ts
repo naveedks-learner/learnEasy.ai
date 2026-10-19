@@ -5,6 +5,7 @@ import { resolveTenant, UnknownTenantError, type TenantConfig } from "./tenant";
 
 import { handleIngest } from "./ingestion";
 import { handleChat } from "./chat";
+import { handleExplain } from "./explain";
 
 type AppEnv = { Bindings: Env; Variables: { tenant: TenantConfig } };
 
@@ -35,5 +36,7 @@ app.get("/api/tenant", (c) => {
 app.post("/api/ingest", (c) => handleIngest(c.req.raw, c.env, c.get("tenant"), c.executionCtx as ExecutionContext));
 
 app.post("/api/chat", (c) => handleChat(c.req.raw, c.env, c.get("tenant"), c.executionCtx as ExecutionContext));
+
+app.post("/api/explain", (c) => handleExplain(c.req.raw, c.env, c.get("tenant"), c.executionCtx as ExecutionContext));
 
 export default app;
