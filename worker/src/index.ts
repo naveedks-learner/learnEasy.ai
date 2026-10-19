@@ -1,6 +1,6 @@
-﻿import { Hono } from "hono";
+import { Hono } from "hono";
 import type { Env } from "./env";
-import { resolveTenant, type TenantConfig } from "./tenant";
+import { resolveTenant, UnknownTenantError, type TenantConfig } from "./tenant";
 
 type AppEnv = { Bindings: Env; Variables: { tenant: TenantConfig } };
 
@@ -14,8 +14,9 @@ app.use("*", async (c, next) => {
   try {
     const tenant = await resolveTenant(url.host, c.env, { tenantOverride: override });
     c.set("tenant", tenant);
-  } catch {
-    return c.json({ error: "Unknown school" }, 404);
+  } catch (err) {
+    if (err instanceof UnknownTenantError) return c.json({ error: "Unknown school" }, 404);
+    throw err;
   }
   await next();
 });

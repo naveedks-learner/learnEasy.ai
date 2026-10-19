@@ -1,4 +1,4 @@
-﻿// worker/test/tenant.test.ts
+// worker/test/tenant.test.ts
 import { describe, it, expect } from "vitest";
 import { resolveTenant, tenantFromRow } from "../src/tenant";
 
@@ -62,3 +62,4 @@ describe("resolveTenant", () => {
     expect(t.tenantId).toBe("school-a");
   });
 });
+

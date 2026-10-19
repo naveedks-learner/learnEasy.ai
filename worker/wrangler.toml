@@ -1,4 +1,4 @@
-﻿name = "learneasy-worker"
+name = "learneasy-worker"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
@@ -24,4 +24,30 @@ bucket_name = "learneasy-pdfs"
 binding = "AI"
 
 [browser]
+binding = "BROWSER"
+
+# Production deploy: `wrangler deploy --env production`. Disables the dev tenant override.
+# Bindings are not inherited by named environments, so they are redeclared here.
+[env.production.vars]
+ENVIRONMENT = "production"
+ADMIN_HOSTNAME = "admin.learneasy.ai"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "learneasy-db"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[env.production.vectorize]]
+binding = "VECTORIZE"
+index_name = "learneasy-chunks"
+
+[[env.production.r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "learneasy-pdfs"
+
+[env.production.ai]
+binding = "AI"
+
+[env.production.browser]
 binding = "BROWSER"

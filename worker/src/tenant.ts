@@ -1,4 +1,4 @@
-﻿import type { Env } from "./env";
+import type { Env } from "./env";
 
 export interface TenantTheme {
   primaryColor: string;
@@ -72,6 +72,13 @@ export function tenantFromRow(row: Record<string, unknown>): TenantConfig {
   };
 }
 
+export class UnknownTenantError extends Error {
+  constructor() {
+    super("Unknown tenant");
+    this.name = "UnknownTenantError";
+  }
+}
+
 export interface ResolveTenantOptions {
   /** Honoured only when env.ENVIRONMENT === "development". */
   tenantOverride?: string;
@@ -91,6 +98,6 @@ export async function resolveTenant(
     : await env.DB.prepare("SELECT * FROM tenants WHERE domain = ?")
         .bind(hostname)
         .first<Record<string, unknown>>();
-  if (!row) throw new Error("Unknown tenant");
+  if (!row) throw new UnknownTenantError();
   return tenantFromRow(row);
 }

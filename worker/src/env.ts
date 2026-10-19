@@ -1,4 +1,4 @@
-﻿export interface Env {
+export interface Env {
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
   PDF_BUCKET: R2Bucket;
