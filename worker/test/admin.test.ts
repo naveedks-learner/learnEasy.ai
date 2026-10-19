@@ -20,6 +20,9 @@ function makeEnv(opts: { tenants?: Record<string, unknown>[]; r2Objects?: any[] 
         },
         async first() {
           calls.push({ sql, args });
+          if (sql.startsWith("SELECT tenant_id FROM tenants WHERE domain")) {
+            return tenants.find((t) => t.domain === args[0] && t.tenant_id !== args[1]) ?? null;
+          }
           if (sql.startsWith("SELECT tenant_id FROM tenants")) {
             return tenants.find((t) => t.tenant_id === args[0] || t.domain === args[1]) ?? null;
           }
@@ -35,6 +38,18 @@ function makeEnv(opts: { tenants?: Record<string, unknown>[]; r2Objects?: any[] 
         },
         async run() {
           calls.push({ sql, args });
+          if (sql.startsWith("UPDATE tenants")) {
+            const t = tenants.find((x) => x.tenant_id === args[args.length - 1]);
+            if (t) {
+              const hasName = sql.includes("name = ?");
+              if (hasName) t.name = args[0];
+              if (sql.includes("domain = ?")) t.domain = args[hasName ? 1 : 0];
+            }
+          }
+          if (sql.startsWith("DELETE FROM tenants")) {
+            const i = tenants.findIndex((x) => x.tenant_id === args[0]);
+            if (i >= 0) tenants.splice(i, 1);
+          }
           if (sql.startsWith("INSERT INTO tenants")) {
             tenants.push({ tenant_id: args[0], name: args[1], domain: args[2] });
           }
@@ -43,12 +58,16 @@ function makeEnv(opts: { tenants?: Record<string, unknown>[]; r2Objects?: any[] 
       };
       return stmt;
     },
+    async batch(stmts: any[]) {
+      for (const st of stmts) await st.run();
+      return [];
+    },
   };
   const listCalls: any[] = [];
   const PDF_BUCKET = {
     async list(o: any) {
       listCalls.push(o);
-      return { objects: opts.r2Objects ?? [], truncated: false };
+      return { objects: (opts.r2Objects ?? []).filter((x: any) => x.key.startsWith(o.prefix)), truncated: false };
     },
     async get(key: string) {
       return key === "t/school-a/cleaned/a.pdf.md" ? { text: async () => "# cleaned" } : null;
@@ -79,6 +98,74 @@ describe("admin routes", () => {
   it("rejects without admin key", async () => {
     const { env } = makeEnv();
     expect((await callAdmin("GET", "/admin/tenants", {}, env)).status).toBe(401);
+  });
+
+  it("rejects a wrong admin key", async () => {
+    const { env } = makeEnv();
+    expect((await callAdmin("GET", "/admin/tenants", { key: "nope" }, env)).status).toBe(401);
+  });
+
+  it("DELETE /admin/tenants/:id deletes, and 404s for unknown", async () => {
+    const { env, calls } = makeEnv({ tenants: [{ tenant_id: "a", name: "A", domain: "a.com" }] });
+    expect((await callAdmin("DELETE", "/admin/tenants/zzz", { key: "test-admin-key" }, env)).status).toBe(404);
+    const res = await callAdmin("DELETE", "/admin/tenants/a", { key: "test-admin-key" }, env);
+    expect(res.status).toBe(200);
+    expect(calls.some((c) => c.sql.startsWith("DELETE FROM config"))).toBe(true);
+    expect(calls.some((c) => c.sql.startsWith("DELETE FROM tenants"))).toBe(true);
+  });
+
+  it("PUT /admin/tenants/:id updates name and domain", async () => {
+    const { env } = makeEnv({ tenants: [{ tenant_id: "a", name: "A", domain: "a.com" }] });
+    const res = await callAdmin(
+      "PUT",
+      "/admin/tenants/a",
+      { key: "test-admin-key", body: { name: "A2", domain: "a2.com" } },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).tenant).toMatchObject({ name: "A2", domain: "a2.com" });
+  });
+
+  it("PUT /admin/tenants/:id 409s when domain belongs to another tenant", async () => {
+    const { env } = makeEnv({
+      tenants: [
+        { tenant_id: "a", name: "A", domain: "a.com" },
+        { tenant_id: "b", name: "B", domain: "b.com" },
+      ],
+    });
+    const res = await callAdmin("PUT", "/admin/tenants/a", { key: "test-admin-key", body: { domain: "b.com" } }, env);
+    expect(res.status).toBe(409);
+  });
+
+  it("PUT /admin/config rejects invalid typed values", async () => {
+    const { env } = makeEnv();
+    for (const body of [
+      { key: "topK", value: "abc" },
+      { key: "topK", value: -1 },
+      { key: "llmProvider", value: "nope" },
+      { key: "jevEnabled", value: "maybe" },
+    ]) {
+      const res = await callAdmin("PUT", "/admin/config?tenant_id=school-a", { key: "test-admin-key", body }, env);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("GET /admin/config returns config", async () => {
+    const { env } = makeEnv();
+    const res = await callAdmin("GET", "/admin/config?tenant_id=school-a", { key: "test-admin-key" }, env);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).config.topK).toBe(5);
+  });
+
+  it("GET /admin/documents/cleaned 404s when missing", async () => {
+    const { env } = makeEnv();
+    const res = await callAdmin(
+      "GET",
+      "/admin/documents/cleaned?tenant_id=school-a&name=missing.pdf",
+      { key: "test-admin-key" },
+      env,
+    );
+    expect(res.status).toBe(404);
   });
 
   it("rejects wrong host when ADMIN_HOSTNAME is set", async () => {
@@ -124,8 +211,8 @@ describe("admin routes", () => {
     const { env, listCalls } = makeEnv({
       r2Objects: [
         { key: "t/school-a/docs/a.pdf", size: 1, uploaded: "x", customMetadata: { chunkCount: "4", enriched: "true" } },
-        { key: "t/school-a/docs/images/a.pdf/1.png", size: 1, uploaded: "x" },
-        { key: "t/school-a/docs/cleaned/a.md", size: 1, uploaded: "x" },
+        { key: "t/school-a/images/a.pdf/1.png", size: 1, uploaded: "x" },
+        { key: "t/school-a/cleaned/a.md", size: 1, uploaded: "x" },
       ],
     });
     const res = await callAdmin("GET", "/admin/documents?tenant_id=school-a", { key: "test-admin-key" }, env);

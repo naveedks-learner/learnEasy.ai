@@ -7,6 +7,26 @@ import { DEFAULTS, loadConfig, saveConfigField } from "./config";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+const CONFIG_ENUMS: Record<string, readonly string[]> = {
+  webSearchMode: ["auto", "rag_only", "web_only"],
+  llmProvider: ["openrouter", "workers-ai"],
+  explainRetrievalMode: ["rag_fallback", "rag_plus_llm"],
+  answerStyle: ["auto", "short", "detailed"],
+};
+
+function validateConfigValue(key: keyof typeof DEFAULTS, value: string): boolean {
+  if (key === "questionPaperModelSlug") return true;
+  const def = DEFAULTS[key];
+  if (typeof def === "number") {
+    const n = Number(value);
+    if (value.trim() === "" || !Number.isFinite(n)) return false;
+    return key === "topK" ? Number.isInteger(n) && n >= 0 : true;
+  }
+  if (typeof def === "boolean") return value === "true" || value === "false";
+  if (CONFIG_ENUMS[key]) return CONFIG_ENUMS[key].includes(value);
+  return value.trim() !== "";
+}
+
 export const adminRoutes = new Hono<{ Bindings: Env }>();
 
 adminRoutes.use("*", async (c, next) => {
@@ -85,10 +105,23 @@ adminRoutes.put("/tenants/:id", async (c) => {
   }
   const existing = await c.env.DB.prepare("SELECT tenant_id FROM tenants WHERE tenant_id = ?").bind(id).first();
   if (!existing) return c.json({ error: "Tenant not found" }, 404);
+  if (typeof body.domain === "string") {
+    const clash = await c.env.DB.prepare("SELECT tenant_id FROM tenants WHERE domain = ? AND tenant_id != ?")
+      .bind(body.domain, id)
+      .first();
+    if (clash) return c.json({ error: "Domain already in use" }, 409);
+  }
   if (sets.length > 0) {
-    await c.env.DB.prepare(`UPDATE tenants SET ${sets.join(", ")}, updated_at = datetime('now') WHERE tenant_id = ?`)
-      .bind(...values, id)
-      .run();
+    try {
+      await c.env.DB.prepare(`UPDATE tenants SET ${sets.join(", ")}, updated_at = datetime('now') WHERE tenant_id = ?`)
+        .bind(...values, id)
+        .run();
+    } catch (err) {
+      if (err instanceof Error && /UNIQUE|constraint/i.test(err.message)) {
+        return c.json({ error: "Domain already in use" }, 409);
+      }
+      throw err;
+    }
   }
   const row = await c.env.DB.prepare("SELECT * FROM tenants WHERE tenant_id = ?")
     .bind(id)
@@ -97,7 +130,16 @@ adminRoutes.put("/tenants/:id", async (c) => {
 });
 
 adminRoutes.delete("/tenants/:id", async (c) => {
-  await c.env.DB.prepare("DELETE FROM tenants WHERE tenant_id = ?").bind(c.req.param("id")).run();
+  const id = c.req.param("id");
+  const existing = await c.env.DB.prepare("SELECT tenant_id FROM tenants WHERE tenant_id = ?").bind(id).first();
+  if (!existing) return c.json({ error: "Tenant not found" }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM rate_limits WHERE tenant_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM question_paper_cache WHERE tenant_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM config WHERE tenant_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM transactions WHERE tenant_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM tenants WHERE tenant_id = ?").bind(id),
+  ]);
   return c.json({ ok: true });
 });
 
@@ -135,7 +177,7 @@ adminRoutes.get("/documents", async (c) => {
     const listed = await c.env.PDF_BUCKET.list({ prefix, cursor, include: ["customMetadata"] });
     for (const obj of listed.objects) {
       const name = obj.key.slice(prefix.length);
-      if (!name || name.startsWith("images/") || name.startsWith("cleaned/")) continue;
+      if (!name) continue;
       const meta = obj.customMetadata ?? {};
       documents.push({
         name,
@@ -207,6 +249,10 @@ adminRoutes.put("/config", async (c) => {
   if (body.value === undefined || body.value === null || typeof body.value === "object") {
     return c.json({ error: "value must be a string, number or boolean" }, 400);
   }
-  await saveConfigField(id, c.env.DB, body.key, String(body.value));
+  const value = String(body.value);
+  if (!validateConfigValue(body.key as keyof typeof DEFAULTS, value)) {
+    return c.json({ error: `Invalid value for ${body.key}` }, 400);
+  }
+  await saveConfigField(id, c.env.DB, body.key, value);
   return c.json({ config: await loadConfig(id, c.env.DB) });
 });
