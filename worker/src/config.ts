@@ -26,7 +26,7 @@ export const DEFAULTS: RuntimeConfig = {
   jevRelevanceThreshold: 1.5,
   guardrailEnabled: true,
   llmProvider: "openrouter",
-  llmModelSlug: "qwen/qwen3-235b-a22b:free",
+  llmModelSlug: "openai/gpt-4o-mini",
   ingestionEnrichmentEnabled: true,
   ingestionModelSlug: "google/gemini-2.5-flash",
   explainRetrievalMode: "rag_plus_llm",

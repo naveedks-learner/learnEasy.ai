@@ -16,6 +16,11 @@ type AppEnv = { Bindings: Env; Variables: { tenant: TenantConfig } };
 
 const app = new Hono<AppEnv>();
 
+app.onError((err, c) => {
+  console.error("Unhandled error:", err.message, err.stack);
+  return c.json({ error: err.message || "Internal server error" }, 500);
+});
+
 app.get("/health", async (c) => {
   let tenantCount = -1;
   try {
