@@ -62,8 +62,14 @@ export const api = {
   documents: (id: string) => request<{ documents: DocumentInfo[] }>(`/admin/documents?${q(id)}`).then((r) => r.documents),
   cleaned: (id: string, name: string) =>
     request<{ name: string; text: string }>(`/admin/documents/cleaned?${q(id)}&name=${encodeURIComponent(name)}`),
-  transactions: (id: string) => request<{ transactions: Transaction[] }>(`/admin/transactions?${q(id)}`).then((r) => r.transactions),
-  costing: (id: string) => request<Costing>(`/admin/costing?${q(id)}`),
+  documentChunks: (id: string, name: string) =>
+    request<{ name: string; chunks: Array<{ text: string; startPage: number; endPage: number; chunkIndex: number }> }>(
+      `/admin/documents/chunks?${q(id)}&name=${encodeURIComponent(name)}`,
+    ),
+  transactions: (id: string, since?: string) =>
+    request<{ transactions: Transaction[] }>(`/admin/transactions?${q(id)}${since ? `&since=${encodeURIComponent(since)}` : ""}`).then((r) => r.transactions),
+  costing: (id: string, since?: string) =>
+    request<Costing>(`/admin/costing?${q(id)}${since ? `&since=${encodeURIComponent(since)}` : ""}`),
   config: (id: string) => request<{ config: RuntimeConfig }>(`/admin/config?${q(id)}`).then((r) => r.config),
   setConfig: (id: string, key: string, value: string | number | boolean) =>
     request<{ config: RuntimeConfig }>(`/admin/config?${q(id)}`, json("PUT", { key, value })).then((r) => r.config),

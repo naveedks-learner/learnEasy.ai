@@ -308,6 +308,64 @@ describe("admin routes", () => {
     expect(await res.json()).toMatchObject({ totalRequests: 2, totalTokens: 50 });
   });
 
+  it("GET /admin/transactions supports since filter", async () => {
+    const { env, calls } = makeEnv();
+    const res = await callAdmin(
+      "GET",
+      "/admin/transactions?tenant_id=school-a&since=2026-10-01T00:00:00Z",
+      { key: "test-admin-key" },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const lastCall = calls.at(-1)!;
+    expect(lastCall.sql).toContain("created_at >= ?");
+    expect(lastCall.args[1]).toBe("2026-10-01T00:00:00Z");
+  });
+
+  it("GET /admin/costing supports since filter", async () => {
+    const { env, calls } = makeEnv();
+    const res = await callAdmin(
+      "GET",
+      "/admin/costing?tenant_id=school-a&since=2026-10-15T00:00:00Z",
+      { key: "test-admin-key" },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const costingCall = calls.find((c) => c.sql.includes("GROUP BY"));
+    expect(costingCall!.sql).toContain("created_at >= ?");
+    expect(costingCall!.args[1]).toBe("2026-10-15T00:00:00Z");
+  });
+
+  it("GET /admin/documents/chunks returns re-chunked text", async () => {
+    const { env } = makeEnv();
+    // The mock PDF_BUCKET.get returns "# cleaned" for "t/school-a/cleaned/a.pdf.md"
+    const res = await callAdmin(
+      "GET",
+      "/admin/documents/chunks?tenant_id=school-a&name=a.pdf",
+      { key: "test-admin-key" },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.name).toBe("a.pdf");
+    expect(Array.isArray(body.chunks)).toBe(true);
+    expect(body.chunks.length).toBeGreaterThan(0);
+    expect(body.chunks[0]).toHaveProperty("text");
+    expect(body.chunks[0]).toHaveProperty("startPage");
+    expect(body.chunks[0]).toHaveProperty("chunkIndex");
+  });
+
+  it("GET /admin/documents/chunks 404s for missing document", async () => {
+    const { env } = makeEnv();
+    const res = await callAdmin(
+      "GET",
+      "/admin/documents/chunks?tenant_id=school-a&name=missing.pdf",
+      { key: "test-admin-key" },
+      env,
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("PUT /admin/config rejects unknown keys and saves valid ones", async () => {
     const { env, calls } = makeEnv();
     const bad = await callAdmin(

@@ -11,10 +11,34 @@ import SettingsTab from "./components/Settings/SettingsTab";
 import CostingTab from "./components/Costing/CostingTab";
 import ObservabilityTab from "./components/Observability/ObservabilityTab";
 
-const TABS = ["Tenants", "Documents", "Transactions", "Settings", "Costing", "Observability"] as const;
-type Tab = (typeof TABS)[number];
+const SECTIONS = [
+  {
+    label: "Content",
+    items: [
+      { id: "Tenants" as const, icon: "M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6", label: "Tenants" },
+      { id: "Documents" as const, icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6", label: "Documents" },
+    ],
+  },
+  {
+    label: "Analytics",
+    items: [
+      { id: "Transactions" as const, icon: "M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6", label: "Transactions" },
+      { id: "Costing" as const, icon: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6", label: "Costing" },
+      { id: "Observability" as const, icon: "M3 3v18h18M7 15l4-4 3 3 5-6", label: "Observability" },
+    ],
+  },
+  {
+    label: "Config",
+    items: [
+      { id: "Settings" as const, icon: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z", label: "Settings" },
+    ],
+  },
+] as const;
+
+type Tab = (typeof SECTIONS)[number]["items"][number]["id"];
 
 const THEME_KEY = "learneasy.dashboard.theme";
+const SIDEBAR_KEY = "learneasy.dashboard.sidebar";
 type Theme = "light" | "dark";
 
 function initialTheme(): Theme {
@@ -23,6 +47,14 @@ function initialTheme(): Theme {
     if (saved === "light" || saved === "dark") return saved;
   } catch { /* ignore */ }
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function initialSidebar(): boolean {
+  try {
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    if (saved === "false") return false;
+  } catch { /* ignore */ }
+  return true;
 }
 
 function useTheme() {
@@ -77,54 +109,108 @@ function NeedsTenant() {
   );
 }
 
+function SidebarIcon({ d }: { d: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      {d.split(" M").map((seg, i) => <path key={i} d={i === 0 ? seg : `M${seg}`} />)}
+    </svg>
+  );
+}
+
 function Dashboard({ onLogout, theme, onToggle }: { onLogout: () => void; theme: Theme; onToggle: () => void }) {
   const { tenants, error, refresh } = useTenants();
   const { activeTenantId, setActiveTenantId } = useActiveTenant();
   const [tab, setTab] = useState<Tab>("Tenants");
   const [onboarding, setOnboarding] = useState(false);
   const [created, setCreated] = useState<TenantConfig | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(initialSidebar);
+
+  useEffect(() => {
+    try { localStorage.setItem(SIDEBAR_KEY, String(sidebarOpen)); } catch { /* ignore */ }
+  }, [sidebarOpen]);
 
   const activeId = tenants.some((t) => t.tenantId === activeTenantId) ? activeTenantId : null;
-  const needsTenant = (tab === "Documents" || tab === "Transactions" || tab === "Settings" || tab === "Costing" || tab === "Observability") && !activeId;
+  const needsTenant = tab !== "Tenants" && !activeId;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-12 pt-5">
-      <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="orb" style={{ width: 34, height: 34 }} />
-          <h1 className="brand text-xl">learnEasy</h1>
-          <span className="badge badge-neutral">Operator</span>
+    <div className="dashboard-shell">
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : "sidebar-collapsed"}`}>
+        <div className="sidebar-header">
+          <div className="flex items-center gap-3" style={{ overflow: "hidden" }}>
+            <div className="orb" style={{ width: 30, height: 30, flexShrink: 0 }} />
+            {sidebarOpen && <span className="brand text-lg">learnEasy</span>}
+          </div>
+          <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              {sidebarOpen
+                ? <><path d="M15 18l-6-6 6-6" /></>
+                : <><path d="M9 18l6-6-6-6" /></>}
+            </svg>
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <TenantSwitcher tenants={tenants} activeId={activeId} onChange={setActiveTenantId} />
-          <ThemeToggle theme={theme} onToggle={onToggle} />
-          <button className="btn btn-secondary btn-sm" onClick={onLogout}>Sign out</button>
-        </div>
-      </header>
-      <nav className="mb-6 flex gap-1 overflow-x-auto rounded-full border p-1" style={{ background: "var(--card)", borderColor: "var(--border)", boxShadow: "var(--shadow-sm)" }}>
-        {TABS.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`tab ${tab === t ? "tab-active" : ""}`}>{t}</button>
-        ))}
-      </nav>
-      {error && <p className="alert alert-error mb-4">{error}</p>}
-      {tab === "Tenants" && (
-        <div className="space-y-5">
-          {created && <DnsInstructions domain={created.domain} onDismiss={() => setCreated(null)} />}
-          {onboarding && (
-            <OnboardingForm
-              onCancel={() => setOnboarding(false)}
-              onCreated={(t) => { setOnboarding(false); setCreated(t); setActiveTenantId(t.tenantId); void refresh(); }}
-            />
+
+        <nav className="sidebar-nav">
+          {SECTIONS.map((section) => (
+            <div key={section.label} className="sidebar-section">
+              {sidebarOpen && <div className="sidebar-section-label">{section.label}</div>}
+              {section.items.map((item) => (
+                <button key={item.id} onClick={() => setTab(item.id)}
+                  className={`sidebar-item ${tab === item.id ? "sidebar-item-active" : ""}`}
+                  title={sidebarOpen ? undefined : item.label}>
+                  <SidebarIcon d={item.icon} />
+                  {sidebarOpen && <span>{item.label}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          {sidebarOpen && (
+            <button className="btn btn-secondary btn-sm w-full" onClick={onLogout}>Sign out</button>
           )}
-          <TenantList tenants={tenants} activeId={activeId} onSelect={setActiveTenantId} onOnboard={() => setOnboarding(true)} />
         </div>
-      )}
-      {needsTenant && <NeedsTenant />}
-      {activeId && tab === "Documents" && <DocumentsTab tenantId={activeId} />}
-      {activeId && tab === "Transactions" && <TransactionsTab tenantId={activeId} />}
-      {activeId && tab === "Settings" && <SettingsTab tenantId={activeId} />}
-      {activeId && tab === "Costing" && <CostingTab tenantId={activeId} />}
-      {activeId && tab === "Observability" && <ObservabilityTab tenantId={activeId} />}
+      </aside>
+
+      {/* Main content */}
+      <main className="main-content">
+        <header className="main-header">
+          <div className="flex items-center gap-3">
+            <TenantSwitcher tenants={tenants} activeId={activeId} onChange={setActiveTenantId} />
+          </div>
+          <div className="flex items-center gap-3">
+            <ThemeToggle theme={theme} onToggle={onToggle} />
+            {!sidebarOpen && (
+              <button className="btn btn-secondary btn-sm" onClick={onLogout}>Sign out</button>
+            )}
+          </div>
+        </header>
+
+        <div className="main-body">
+          {error && <p className="alert alert-error mb-4">{error}</p>}
+          {tab === "Tenants" && (
+            <div className="space-y-5">
+              {created && <DnsInstructions domain={created.domain} onDismiss={() => setCreated(null)} />}
+              {onboarding && (
+                <OnboardingForm
+                  onCancel={() => setOnboarding(false)}
+                  onCreated={(t) => { setOnboarding(false); setCreated(t); setActiveTenantId(t.tenantId); void refresh(); }}
+                />
+              )}
+              <TenantList tenants={tenants} activeId={activeId} onSelect={setActiveTenantId} onOnboard={() => setOnboarding(true)} />
+            </div>
+          )}
+          {needsTenant && <NeedsTenant />}
+          {activeId && tab === "Documents" && <DocumentsTab tenantId={activeId} />}
+          {activeId && tab === "Transactions" && <TransactionsTab tenantId={activeId} />}
+          {activeId && tab === "Settings" && <SettingsTab tenantId={activeId} />}
+          {activeId && tab === "Costing" && <CostingTab tenantId={activeId} />}
+          {activeId && tab === "Observability" && <ObservabilityTab tenantId={activeId} />}
+        </div>
+      </main>
     </div>
   );
 }

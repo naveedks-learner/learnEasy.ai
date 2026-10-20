@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Costing } from "../../api/client";
+import PeriodSelector, { type Period, sinceFromPeriod } from "../PeriodSelector";
 
 const PRICING: Record<string, { input: number; output: number; label: string }> = {
   "openai/gpt-4o-mini": { input: 0.165, output: 0.66, label: "GPT-4o Mini" },
@@ -27,16 +28,17 @@ function fmtTokens(n: number): string {
 export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
   const [data, setData] = useState<Costing | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<Period>("");
 
   useEffect(() => {
     if (!tenantId) return;
     let cancelled = false;
     setData(null); setError(null);
-    api.costing(tenantId)
+    api.costing(tenantId, sinceFromPeriod(period))
       .then((r) => { if (!cancelled) setData(r); })
       .catch((e) => { if (!cancelled) setError((e as Error).message); });
     return () => { cancelled = true; };
-  }, [tenantId]);
+  }, [tenantId, period]);
 
   if (!tenantId) {
     return (
@@ -57,6 +59,11 @@ export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="font-semibold text-lg">Costing</h2>
+        <PeriodSelector value={period} onChange={setPeriod} />
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="metric">
           <div className="metric-label">Total requests</div>

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { api, type Transaction } from "../../api/client";
+import PeriodSelector, { type Period, sinceFromPeriod } from "../PeriodSelector";
 
 interface TraceChunk {
   text?: string;
@@ -60,6 +61,16 @@ function PipelineDetail({ t }: { t: Transaction }) {
   const webResults = trace?.webResults ?? [];
   const path = t.path_taken ?? "unknown";
 
+  const contextBlocks = [
+    ...keptChunks.map((c, i) => `[Document ${i + 1}: ${c.filename ?? "unknown"}]\n${(c.text ?? "").slice(0, 300)}…`),
+    ...webResults.map((r, i) => `[Web ${i + 1}: ${r.title} (${r.url})]\n${r.snippet ?? ""}`),
+  ];
+  const modelInput = contextBlocks.length > 0
+    ? `Context:\n${contextBlocks.join("\n\n")}\n\nQuestion: ${t.question ?? ""}`
+    : `(no context)\n\nQuestion: ${t.question ?? ""}`;
+
+  let stageNum = 0;
+
   return (
     <div className="pipeline">
       <div className="pipeline-summary">
@@ -67,14 +78,16 @@ function PipelineDetail({ t }: { t: Transaction }) {
         <div className="kv"><span className="kv-label">Model</span><span className="mono text-xs">{t.model ?? "–"}</span></div>
         <div className="kv"><span className="kv-label">Tokens</span><span className="mono text-xs">{t.token_estimate ?? "–"}</span></div>
         {trace?.answerStyle && <div className="kv"><span className="kv-label">Style</span><span>{trace.answerStyle}</span></div>}
+        {trace?.groundedIn && <div className="kv"><span className="kv-label">Grounded in</span><span>{trace.groundedIn}</span></div>}
+        {trace?.explainRetrievalMode && <div className="kv"><span className="kv-label">Retrieval mode</span><span>{trace.explainRetrievalMode}</span></div>}
       </div>
 
-      {/* Retrieval */}
+      {/* Stage 1: VectorDB Retrieval */}
       {chunks.length > 0 && (
         <details className="stage">
           <summary className="stage-head">
-            <span className="stage-num" style={{ background: "var(--success)" }}>1</span>
-            <span className="stage-label">Retrieval & Ranking ({chunks.length} chunks → {keptChunks.length} kept)</span>
+            <span className="stage-num" style={{ background: "var(--secondary)" }}>{++stageNum}</span>
+            <span className="stage-label">VectorDB Retrieval & Ranking ({chunks.length} chunks → {keptChunks.length} kept)</span>
           </summary>
           <div className="stage-body">
             <div className="chunks-list">
@@ -84,11 +97,11 @@ function PipelineDetail({ t }: { t: Transaction }) {
         </details>
       )}
 
-      {/* Web fallback */}
+      {/* Stage 2: Web fallback */}
       {webResults.length > 0 && (
         <details className="stage">
           <summary className="stage-head">
-            <span className="stage-num" style={{ background: "var(--info)" }}>2</span>
+            <span className="stage-num" style={{ background: "var(--info)" }}>{++stageNum}</span>
             <span className="stage-label">Web Fallback ({webResults.length} results)</span>
           </summary>
           <div className="stage-body">
@@ -103,16 +116,53 @@ function PipelineDetail({ t }: { t: Transaction }) {
         </details>
       )}
 
-      {/* Answer */}
+      {/* Stage 3: Model I/O */}
       <details className="stage" open>
         <summary className="stage-head">
-          <span className="stage-num" style={{ background: t.answer ? "var(--success)" : "var(--error)" }}>{webResults.length > 0 ? 3 : 2}</span>
-          <span className="stage-label">LLM Answer ({t.token_estimate ?? "?"} tokens)</span>
+          <span className="stage-num" style={{ background: t.answer ? "var(--success)" : "var(--error)" }}>{++stageNum}</span>
+          <span className="stage-label">LLM Generation — {t.model ?? "unknown"} ({t.token_estimate ?? "?"} tokens)</span>
         </summary>
         <div className="stage-body">
-          <pre className="chunk-text" style={{ maxHeight: 300 }}>{t.answer ?? "(none)"}</pre>
+          <div className="stage-io">
+            <div className="io-block">
+              <div className="io-label">Input (context + question)</div>
+              <pre className="io-text chunk-text" style={{ maxHeight: 200 }}>{modelInput}</pre>
+            </div>
+            <div className="io-arrow">→</div>
+            <div className="io-block">
+              <div className="io-label">Output (LLM answer)</div>
+              <pre className="io-text chunk-text" style={{ maxHeight: 200 }}>{t.answer ?? "(none)"}</pre>
+            </div>
+          </div>
         </div>
       </details>
+    </div>
+  );
+}
+
+function SummaryCards({ rows }: { rows: Transaction[] }) {
+  const total = rows.length;
+  const totalTokens = rows.reduce((s, r) => s + (r.token_estimate ?? 0), 0);
+  const ragCount = rows.filter((r) => r.path_taken === "rag").length;
+  const ragRate = total > 0 ? Math.round((ragCount / total) * 100) : 0;
+  return (
+    <div className="grid gap-3 sm:grid-cols-4 mb-4">
+      <div className="metric">
+        <div className="metric-label">Queries</div>
+        <div className="metric-value">{total.toLocaleString()}</div>
+      </div>
+      <div className="metric">
+        <div className="metric-label">Total tokens</div>
+        <div className="metric-value">{totalTokens >= 1000 ? `${(totalTokens / 1000).toFixed(1)}K` : totalTokens}</div>
+      </div>
+      <div className="metric">
+        <div className="metric-label">RAG rate</div>
+        <div className="metric-value" style={{ color: ragRate >= 70 ? "var(--success)" : ragRate >= 40 ? "var(--warn)" : "var(--error)" }}>{ragRate}%</div>
+      </div>
+      <div className="metric">
+        <div className="metric-label">Avg tokens</div>
+        <div className="metric-value">{total > 0 ? Math.round(totalTokens / total) : 0}</div>
+      </div>
     </div>
   );
 }
@@ -122,21 +172,27 @@ export default function TransactionsTab({ tenantId }: { tenantId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<number | null>(null);
+  const [period, setPeriod] = useState<Period>("");
 
   useEffect(() => {
     let cancelled = false;
     setRows([]); setOpenId(null); setError(null); setLoading(true);
-    api.transactions(tenantId)
+    api.transactions(tenantId, sinceFromPeriod(period))
       .then((r) => { if (!cancelled) { setRows(r); setLoading(false); } })
       .catch((e) => { if (!cancelled) { setError((e as Error).message); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [tenantId]);
+  }, [tenantId, period]);
 
   if (loading) return <p className="muted text-center">Loading…</p>;
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="font-semibold text-lg">Transactions</h2>
+        <PeriodSelector value={period} onChange={setPeriod} />
+      </div>
       {error && <p className="alert alert-error">{error}</p>}
+      <SummaryCards rows={rows} />
       <div className="table-wrap">
         <table className="table">
           <thead><tr>

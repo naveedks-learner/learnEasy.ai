@@ -3,6 +3,51 @@ import { api, type DocumentInfo } from "../../api/client";
 
 const INGEST_KEY_STORAGE = "learneasy.ingestKey";
 
+interface ChunkInfo { text: string; startPage: number; endPage: number; chunkIndex: number }
+
+function ChunksModal({ tenantId, name, onClose }: { tenantId: string; name: string; onClose: () => void }) {
+  const [chunks, setChunks] = useState<ChunkInfo[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.documentChunks(tenantId, name)
+      .then((r) => setChunks(r.chunks))
+      .catch((e) => setError((e as Error).message));
+  }, [tenantId, name]);
+
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 900 }}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="font-semibold">Chunks — {name}</h3>
+          <button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button>
+        </div>
+        {error && <p className="alert alert-error mb-3">{error}</p>}
+        {!chunks && !error && <p className="muted text-center">Loading chunks…</p>}
+        {chunks && (
+          <>
+            <p className="muted text-xs mb-3">{chunks.length} chunks (300 words, 50 overlap)</p>
+            <div className="chunks-list">
+              {chunks.map((c) => (
+                <details key={c.chunkIndex} className="chunk-row">
+                  <summary style={{ cursor: "pointer", listStyle: "none" }}>
+                    <div className="chunk-header">
+                      <span className="chunk-idx">#{c.chunkIndex + 1}</span>
+                      <span className="muted text-xs">Pages {c.startPage}–{c.endPage}</span>
+                      <span className="muted text-xs" style={{ marginLeft: "auto" }}>{c.text.split(/\s+/).length} words</span>
+                    </div>
+                  </summary>
+                  <pre className="chunk-text" style={{ marginTop: 8 }}>{c.text}</pre>
+                </details>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DocumentsTab({ tenantId }: { tenantId: string }) {
   const [docs, setDocs] = useState<DocumentInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -10,6 +55,7 @@ export default function DocumentsTab({ tenantId }: { tenantId: string }) {
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [modal, setModal] = useState<{ name: string; text: string } | null>(null);
+  const [chunksDoc, setChunksDoc] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback((isCancelled: () => boolean = () => false) => {
@@ -88,7 +134,10 @@ export default function DocumentsTab({ tenantId }: { tenantId: string }) {
                 <td className="mono">{d.chunkCount ?? "–"}</td>
                 <td><span className={`badge ${d.enriched ? "badge-success" : "badge-neutral"}`}>{d.enriched ? "yes" : "no"}</span></td>
                 <td className="muted">{d.indexedAt ?? "–"}</td>
-                <td className="text-right">{d.enriched && <button className="link-btn" onClick={() => void view(d.name)}>View Enriched</button>}</td>
+                <td className="text-right" style={{ whiteSpace: "nowrap" }}>
+                  <button className="link-btn" onClick={() => setChunksDoc(d.name)} style={{ marginRight: 8 }}>Chunks</button>
+                  {d.enriched && <button className="link-btn" onClick={() => void view(d.name)}>Enriched</button>}
+                </td>
               </tr>
             ))}
             {docs.length === 0 && (
@@ -102,6 +151,7 @@ export default function DocumentsTab({ tenantId }: { tenantId: string }) {
           </tbody>
         </table>
       </div>
+      {chunksDoc && <ChunksModal tenantId={tenantId} name={chunksDoc} onClose={() => setChunksDoc(null)} />}
       {modal && (
         <div className="modal-back" onClick={() => setModal(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>

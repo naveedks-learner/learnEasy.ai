@@ -4,6 +4,7 @@ import { buildCorsHeaders } from "./cors";
 import { tenantFromRow } from "./tenant";
 import { TenantStorage } from "./storage";
 import { DEFAULTS, loadConfig, saveConfigField } from "./config";
+import { chunkText } from "./chunker";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -242,25 +243,55 @@ adminRoutes.get("/documents/cleaned", async (c) => {
   return c.json({ name: safe, text: await obj.text() });
 });
 
+adminRoutes.get("/documents/chunks", async (c) => {
+  const id = c.req.query("tenant_id");
+  const name = c.req.query("name");
+  if (!id || !name) return c.json({ error: "tenant_id and name required" }, 400);
+  const storage = new TenantStorage(id, c.env);
+  const safe = storage.sanitizeFilename(name);
+  const obj = safe ? await c.env.PDF_BUCKET.get(storage.r2Key("cleaned", `${safe}.md`)) : null;
+  if (!obj) return c.json({ error: "Not found" }, 404);
+  const text = await obj.text();
+  const pages = text.split(/^## Page (\d+)/m).slice(1);
+  const parsed: Array<{ page: number; text: string }> = [];
+  for (let i = 0; i < pages.length; i += 2) {
+    parsed.push({ page: Number(pages[i]), text: (pages[i + 1] ?? "").trim() });
+  }
+  if (parsed.length === 0) parsed.push({ page: 1, text });
+  const chunks = chunkText(parsed);
+  return c.json({ name: safe, chunks: chunks.map((c) => ({ text: c.text, startPage: c.startPage, endPage: c.endPage, chunkIndex: c.chunkIndex })) });
+});
+
 adminRoutes.get("/transactions", async (c) => {
   const id = c.req.query("tenant_id");
   if (!id) return c.json({ error: "tenant_id required" }, 400);
   const limit = Math.min(Math.max(Number(c.req.query("limit")) || 100, 1), 500);
-  const { results } = await c.env.DB.prepare(
-    "SELECT * FROM transactions WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?",
-  )
-    .bind(id, limit)
-    .all();
+  const since = c.req.query("since");
+  let sql = "SELECT * FROM transactions WHERE tenant_id = ?";
+  const binds: unknown[] = [id];
+  if (since) {
+    sql += " AND created_at >= ?";
+    binds.push(since);
+  }
+  sql += " ORDER BY created_at DESC LIMIT ?";
+  binds.push(limit);
+  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
   return c.json({ transactions: results ?? [] });
 });
 
 adminRoutes.get("/costing", async (c) => {
   const id = c.req.query("tenant_id");
   if (!id) return c.json({ error: "tenant_id required" }, 400);
-  const { results } = await c.env.DB.prepare(
-    "SELECT provider, model, COUNT(*) AS requests, COALESCE(SUM(token_estimate), 0) AS tokens FROM transactions WHERE tenant_id = ? GROUP BY provider, model",
-  )
-    .bind(id)
+  const since = c.req.query("since");
+  let sql = "SELECT provider, model, COUNT(*) AS requests, COALESCE(SUM(token_estimate), 0) AS tokens FROM transactions WHERE tenant_id = ?";
+  const binds: unknown[] = [id];
+  if (since) {
+    sql += " AND created_at >= ?";
+    binds.push(since);
+  }
+  sql += " GROUP BY provider, model";
+  const { results } = await c.env.DB.prepare(sql)
+    .bind(...binds)
     .all<{ provider: string | null; model: string | null; requests: number; tokens: number }>();
   const breakdown = results ?? [];
   return c.json({
