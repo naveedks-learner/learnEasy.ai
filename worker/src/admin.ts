@@ -5,6 +5,7 @@ import { tenantFromRow } from "./tenant";
 import { TenantStorage } from "./storage";
 import { DEFAULTS, loadConfig, saveConfigField } from "./config";
 import { chunkText } from "./chunker";
+import { rerank } from "./rerank";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -298,6 +299,53 @@ adminRoutes.get("/costing", async (c) => {
     totalRequests: breakdown.reduce((s, r) => s + r.requests, 0),
     totalTokens: breakdown.reduce((s, r) => s + r.tokens, 0),
     breakdown,
+  });
+});
+
+adminRoutes.post("/relevance-check", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    tenant_id?: string;
+    query?: string;
+    top_k?: number;
+  } | null;
+  if (!body?.tenant_id || !body?.query) return c.json({ error: "tenant_id and query required" }, 400);
+
+  const storage = new TenantStorage(body.tenant_id, c.env);
+  const topK = Math.min(Math.max(body.top_k ?? 10, 1), 20);
+
+  const EMBED_MODEL = "@cf/baai/bge-base-en-v1.5";
+  const embedOut = (await c.env.AI.run(EMBED_MODEL, { text: [body.query] })) as { data?: number[][] };
+  if (!embedOut.data?.[0]) return c.json({ error: "Embedding failed" }, 502);
+
+  const queried = await c.env.VECTORIZE.query(embedOut.data[0], {
+    topK,
+    filter: storage.vectorFilter(),
+    returnMetadata: "all",
+  });
+
+  const retrieved = (queried?.matches ?? []).map((m) => {
+    const meta = (m.metadata ?? {}) as Record<string, string>;
+    return { ...meta, id: m.id, score: m.score, text: String(meta.text ?? "") };
+  });
+
+  const reranked = await rerank(body.query, retrieved, c.env);
+
+  const results = reranked.map((c: any, i: number) => ({
+    rank: i + 1,
+    filename: c.filename ?? "unknown",
+    page: c.startPage ?? c.page ?? "?",
+    chunkIndex: c.chunkIndex ?? "?",
+    cosine: Number(c.score).toFixed(4),
+    rerank: typeof c.rerankScore === "number" ? c.rerankScore.toFixed(4) : null,
+    textPreview: String(c.text).slice(0, 200),
+  }));
+
+  return c.json({
+    query: body.query,
+    tenantId: body.tenant_id,
+    totalRetrieved: retrieved.length,
+    rerankWorking: reranked.some((c: any) => typeof c.rerankScore === "number"),
+    results,
   });
 });
 

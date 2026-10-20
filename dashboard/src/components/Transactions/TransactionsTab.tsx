@@ -2,12 +2,21 @@ import { Fragment, useEffect, useState } from "react";
 import { api, type Transaction } from "../../api/client";
 import PeriodSelector, { type Period, sinceFromPeriod } from "../PeriodSelector";
 
+function toIST(utc: string | null): string {
+  if (!utc) return "–";
+  try {
+    const d = new Date(utc.endsWith("Z") ? utc : utc + "Z");
+    return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false });
+  } catch { return utc; }
+}
+
 interface TraceChunk {
   text?: string;
   score?: number;
   rerankScore?: number;
   jevScore?: number;
   kept?: boolean;
+  chunkIndex?: number;
   filename?: string;
   page?: number;
   startPage?: number;
@@ -27,29 +36,37 @@ function parseTrace(raw: string | null): TraceData | null {
   try { return JSON.parse(raw) as TraceData; } catch { return null; }
 }
 
-function ChunkRow({ c, i }: { c: TraceChunk; i: number }) {
-  const [showText, setShowText] = useState(false);
+function ChunksTable({ chunks }: { chunks: TraceChunk[] }) {
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   return (
-    <div className={`chunk-row ${c.kept ? "" : "chunk-discarded"}`}>
-      <div className="chunk-header">
-        <span className="chunk-idx">#{i + 1}</span>
-        <span className="mono text-xs">{c.filename ?? "unknown"}</span>
-        {(c.page != null || c.startPage != null) && (
-          <span className="muted text-xs">p.{c.page ?? c.startPage}</span>
-        )}
-        <span className={`badge ${c.kept ? "badge-success" : "badge-neutral"} text-xs`} style={{ marginLeft: "auto" }}>
-          {c.kept ? "kept" : "discarded"}
-        </span>
-      </div>
-      <div className="chunk-scores">
-        <span title="Cosine similarity">cos: {(c.score ?? 0).toFixed(3)}</span>
-        {c.rerankScore != null && <span title="Rerank score">rerank: {c.rerankScore.toFixed(3)}</span>}
-        {c.jevScore != null && <span title="JEV score">jev: {Number(c.jevScore).toFixed(2)}</span>}
-      </div>
-      <button type="button" className="chunk-toggle" onClick={() => setShowText(!showText)}>
-        {showText ? "Hide text ▴" : "Show text ▾"}
-      </button>
-      {showText && <pre className="chunk-text">{c.text ?? "(empty)"}</pre>}
+    <div className="table-wrap">
+      <table className="table text-xs">
+        <thead><tr>
+          <th>Rank</th><th>Source</th><th>Page</th><th>Chunk</th><th>Cosine</th>
+          <th>Rerank</th><th>JEV</th><th>Status</th>
+        </tr></thead>
+        <tbody>
+          {chunks.map((c, i) => (
+            <Fragment key={i}>
+              <tr style={{ cursor: "pointer" }} onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}>
+                <td className="mono">{i + 1}</td>
+                <td className="mono">{c.filename ?? "unknown"}</td>
+                <td className="mono">{c.page ?? c.startPage ?? "–"}</td>
+                <td className="mono">{c.chunkIndex ?? i}</td>
+                <td className="mono">{(c.score ?? 0).toFixed(4)}</td>
+                <td className="mono">{c.rerankScore != null ? Number(c.rerankScore).toFixed(4) : "–"}</td>
+                <td className="mono">{c.jevScore != null ? Number(c.jevScore).toFixed(2) : "–"}</td>
+                <td><span className={`badge ${c.kept ? "badge-success" : "badge-neutral"}`}>{c.kept ? "kept" : "discarded"}</span></td>
+              </tr>
+              {expandedIdx === i && (
+                <tr><td colSpan={8} style={{ padding: 0, border: 0 }}>
+                  <pre className="chunk-text" style={{ margin: 8 }}>{c.text ?? "(empty)"}</pre>
+                </td></tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -90,9 +107,7 @@ function PipelineDetail({ t }: { t: Transaction }) {
             <span className="stage-label">VectorDB Retrieval & Ranking ({chunks.length} chunks → {keptChunks.length} kept)</span>
           </summary>
           <div className="stage-body">
-            <div className="chunks-list">
-              {chunks.map((c, i) => <ChunkRow key={i} c={c} i={i} />)}
-            </div>
+            <ChunksTable chunks={chunks} />
           </div>
         </details>
       )}
@@ -202,7 +217,7 @@ export default function TransactionsTab({ tenantId }: { tenantId: string }) {
             {rows.map((t) => (
               <Fragment key={t.id}>
                 <tr style={{ cursor: "pointer" }} onClick={() => setOpenId(openId === t.id ? null : t.id)}>
-                  <td className="muted" style={{ whiteSpace: "nowrap" }}>{t.created_at}</td>
+                  <td className="muted" style={{ whiteSpace: "nowrap" }}>{toIST(t.created_at)}</td>
                   <td>{t.path_taken ? <span className="badge badge-info">{t.path_taken}</span> : "–"}</td>
                   <td>{(t.question ?? "").slice(0, 80)}{(t.question?.length ?? 0) > 80 ? "…" : ""}</td>
                   <td className="mono text-xs">{t.model ?? "–"}</td>

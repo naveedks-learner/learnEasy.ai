@@ -19,7 +19,7 @@ export interface RuntimeConfig {
 
 export const DEFAULTS: RuntimeConfig = {
   topK: 5,
-  confidenceThreshold: 0,
+  confidenceThreshold: 0.3,
   webSearchMode: "auto",
   hardFailNoDocument: false,
   jevEnabled: true,

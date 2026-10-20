@@ -8,6 +8,8 @@ const ENUMS: Record<string, string[]> = {
   answerStyle: ["auto", "short", "detailed"],
 };
 
+const TBD_KEYS = new Set(["hardFailNoDocument", "questionPaperModelSlug"]);
+
 function ConfigRow({ k, value, onSave }: { k: string; value: string | number | boolean | null; onSave: (v: string | number | boolean) => Promise<void> }) {
   const [draft, setDraft] = useState<string>(String(value ?? ""));
   const [msg, setMsg] = useState<string | null>(null);
@@ -30,8 +32,11 @@ function ConfigRow({ k, value, onSave }: { k: string; value: string | number | b
   }
   return (
     <div className="flex flex-wrap items-center gap-3 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-      <span className="mono w-64 text-sm">{k}</span>{control}
-      {msg && <span className="muted text-xs">{msg}</span>}
+      <span className="mono w-64 text-sm">{k}</span>
+      {TBD_KEYS.has(k) ? (
+        <span className="badge badge-neutral text-xs" style={{ opacity: 0.7 }}>TBD — not yet wired</span>
+      ) : control}
+      {msg && !TBD_KEYS.has(k) && <span className="muted text-xs">{msg}</span>}
     </div>
   );
 }
