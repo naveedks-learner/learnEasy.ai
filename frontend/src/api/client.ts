@@ -28,6 +28,13 @@ export interface ChatResponse {
   [k: string]: unknown;
 }
 
+export interface PracticeQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
 export interface ExplainResponse {
   concept: string;
   simpleExplanation: string | null;
@@ -36,6 +43,11 @@ export interface ExplainResponse {
   definition: string | null;
   table: string | null;
   realWorldExample: string | null;
+  difficultyLevel?: "basic" | "intermediate" | "advanced" | null;
+  keyTakeaways?: string[] | null;
+  relatedConcepts?: string[] | null;
+  youtubeSearchQuery?: string | null;
+  practiceQuestions?: PracticeQuestion[] | null;
   groundedIn?: "documents" | "general_knowledge" | "both";
 }
 

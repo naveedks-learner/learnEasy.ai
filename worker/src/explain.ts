@@ -11,7 +11,14 @@ import { buildTransactionTrace, insertTransaction, type TraceChunk } from "./tra
 
 const EMBED_MODEL = "@cf/baai/bge-base-en-v1.5";
 const MAX_CONCEPT_CHARS = 200;
-const MAX_TOKENS = 900;
+const MAX_TOKENS = 1800;
+
+export interface PracticeQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
 
 export interface ExplainResponse {
   concept: string;
@@ -21,12 +28,23 @@ export interface ExplainResponse {
   definition: string | null;
   table: string | null;
   realWorldExample: string | null;
+  difficultyLevel: "basic" | "intermediate" | "advanced" | null;
+  keyTakeaways: string[] | null;
+  relatedConcepts: string[] | null;
+  youtubeSearchQuery: string | null;
+  practiceQuestions: PracticeQuestion[] | null;
 }
 
 const JSON_SHAPE =
   'Respond with ONLY a ```json fenced block of this shape: {"concept": string, "simpleExplanation": string, ' +
   '"steps": string[] | null, "formula": string | null, "definition": string | null, ' +
-  '"table": string | null (Markdown table), "realWorldExample": string | null}. Use null for fields that do not apply.';
+  '"table": string | null (Markdown table), "realWorldExample": string | null, ' +
+  '"difficultyLevel": "basic" | "intermediate" | "advanced", ' +
+  '"keyTakeaways": string[] (2-4 concise bullet points summarizing the most important things to remember), ' +
+  '"relatedConcepts": string[] (3-5 related topics the student should explore next), ' +
+  '"youtubeSearchQuery": string (a short, specific YouTube search query to find an educational video on this topic, e.g. "photosynthesis explained for students"), ' +
+  '"practiceQuestions": [{"question": string, "options": string[] (4 options), "correctIndex": number (0-3), "explanation": string}] (2-3 multiple choice questions to test understanding)' +
+  '}. Use null for fields that do not apply.';
 
 const BASE_PROMPT =
   "You are a friendly tutor explaining a concept to a 16-17 year old student studying science or maths. " +
@@ -50,6 +68,11 @@ function emptyResponse(raw: string): ExplainResponse {
     definition: null,
     table: null,
     realWorldExample: null,
+    difficultyLevel: null,
+    keyTakeaways: null,
+    relatedConcepts: null,
+    youtubeSearchQuery: null,
+    practiceQuestions: null,
   };
 }
 
@@ -65,6 +88,17 @@ export function parseExplainLlmResponse(raw: string): ExplainResponse {
     if (!parsed || typeof parsed !== "object" || typeof parsed.simpleExplanation !== "string") {
       return emptyResponse(raw);
     }
+    const validDifficulty = ["basic", "intermediate", "advanced"];
+    const pqs = Array.isArray(parsed.practiceQuestions)
+      ? parsed.practiceQuestions
+          .filter((q: any) => q && typeof q.question === "string" && Array.isArray(q.options) && typeof q.correctIndex === "number")
+          .map((q: any) => ({
+            question: q.question,
+            options: q.options.map(String),
+            correctIndex: q.correctIndex,
+            explanation: typeof q.explanation === "string" ? q.explanation : "",
+          }))
+      : null;
     return {
       concept: typeof parsed.concept === "string" ? parsed.concept : "",
       simpleExplanation: parsed.simpleExplanation,
@@ -73,6 +107,11 @@ export function parseExplainLlmResponse(raw: string): ExplainResponse {
       definition: strOrNull(parsed.definition),
       table: strOrNull(parsed.table),
       realWorldExample: strOrNull(parsed.realWorldExample),
+      difficultyLevel: validDifficulty.includes(parsed.difficultyLevel) ? parsed.difficultyLevel : null,
+      keyTakeaways: Array.isArray(parsed.keyTakeaways) ? parsed.keyTakeaways.map(String) : null,
+      relatedConcepts: Array.isArray(parsed.relatedConcepts) ? parsed.relatedConcepts.map(String) : null,
+      youtubeSearchQuery: strOrNull(parsed.youtubeSearchQuery),
+      practiceQuestions: pqs && pqs.length > 0 ? pqs : null,
     };
   } catch {
     return emptyResponse(raw);
