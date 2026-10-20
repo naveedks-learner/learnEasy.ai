@@ -221,5 +221,12 @@ export async function handleExplain(
     ).catch(() => {}),
   );
 
-  return json({ ...parsed, concept: parsed.concept || concept, groundedIn });
+  const docSources = keptChunks.map((c: any) => ({
+    filename: String(c.filename ?? ""),
+    page: Number(c.page ?? c.startPage ?? 0),
+    snippet: String(c.text).slice(0, 300),
+    ...(c.pageImageKey ? { pageImageKey: String(c.pageImageKey) } : {}),
+  }));
+
+  return json({ ...parsed, concept: parsed.concept || concept, groundedIn, docSources });
 }

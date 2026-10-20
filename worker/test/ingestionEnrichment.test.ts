@@ -35,6 +35,36 @@ describe("parseEnrichedPages", () => {
     expect(parseEnrichedPages("no markers here", plain)).toEqual(plain);
     expect(parseEnrichedPages(null as any, plain)).toEqual(plain);
   });
+
+  it("preserves Markdown tables in enriched output", () => {
+    const enriched = "<<<PAGE 1>>>\n| Col | Val |\n|-----|-----|\n| A   | 1   |";
+    const plain = [{ page: 1, text: "plain text" }];
+    const result = parseEnrichedPages(enriched, plain);
+    expect(result[0].text).toContain("| Col | Val |");
+    expect(result[0].text).toContain("| A   | 1   |");
+  });
+
+  it("preserves LaTeX formulas in enriched output", () => {
+    const enriched = "<<<PAGE 1>>>\nThe formula is $E = mc^2$ and also $$F = ma$$";
+    const plain = [{ page: 1, text: "plain" }];
+    const result = parseEnrichedPages(enriched, plain);
+    expect(result[0].text).toContain("$E = mc^2$");
+    expect(result[0].text).toContain("$$F = ma$$");
+  });
+
+  it("preserves [Figure: ...] tags in enriched output", () => {
+    const enriched = "<<<PAGE 1>>>\nSome text\n[Figure: Diagram of a cell]\nMore text";
+    const plain = [{ page: 1, text: "plain" }];
+    const result = parseEnrichedPages(enriched, plain);
+    expect(result[0].text).toContain("[Figure: Diagram of a cell]");
+  });
+
+  it("handles duplicate page markers by taking the first occurrence", () => {
+    const enriched = "<<<PAGE 1>>>\nFirst version\n<<<PAGE 1>>>\nSecond version";
+    const plain = [{ page: 1, text: "plain" }];
+    const result = parseEnrichedPages(enriched, plain);
+    expect(result[0].text).toBe("First version");
+  });
 });
 
 describe("enrichPdfToMarkdown", () => {

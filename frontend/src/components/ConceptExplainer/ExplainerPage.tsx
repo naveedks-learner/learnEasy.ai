@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { postExplain, type ExplainResponse, type PracticeQuestion } from "../../api/client";
 import { Formula, Latex } from "../common/Latex";
 import { Thinking } from "../common/LoadingSpinner";
+import { SourceCard } from "../Chat/SourceCard";
 
 const PHRASES = ["Breaking it down…", "Finding the key idea…", "Looking for a good example…", "Making it simple…"];
 
@@ -234,6 +235,15 @@ export function ExplainerPage() {
             {r.youtubeSearchQuery && (
               <Section title="Watch & learn" icon="🎬" delay={nextDelay()}>
                 <YouTubeLink query={r.youtubeSearchQuery} />
+              </Section>
+            )}
+            {r.docSources && r.docSources.length > 0 && (
+              <Section title="Sources" icon="📄" delay={nextDelay()}>
+                <div className="sources">
+                  {r.docSources.map((s, i) => (
+                    <SourceCard key={i} source={s} />
+                  ))}
+                </div>
               </Section>
             )}
             {r.relatedConcepts && r.relatedConcepts.length > 0 && (

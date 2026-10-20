@@ -49,6 +49,7 @@ export interface ExplainResponse {
   youtubeSearchQuery?: string | null;
   practiceQuestions?: PracticeQuestion[] | null;
   groundedIn?: "documents" | "general_knowledge" | "both";
+  docSources?: DocSource[];
 }
 
 function tenantParam(): string {

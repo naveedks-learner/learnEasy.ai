@@ -25,6 +25,76 @@ describe("parseExplainLlmResponse", () => {
     const result = parseExplainLlmResponse('{"concept":"force"}');
     expect(result.simpleExplanation).toBe('{"concept":"force"}');
   });
+
+  it("parses practiceQuestions with all required fields", () => {
+    const raw = '```json\n' + JSON.stringify({
+      concept: "gravity",
+      simpleExplanation: "Pulls stuff down",
+      steps: null, formula: null, definition: null, table: null, realWorldExample: null,
+      practiceQuestions: [
+        { question: "What is g?", options: ["9.8", "10", "0", "1"], correctIndex: 0, explanation: "Standard gravity" },
+        { question: "Bad", options: "not-array" },
+      ],
+    }) + '\n```';
+    const result = parseExplainLlmResponse(raw);
+    expect(result.practiceQuestions).toHaveLength(1);
+    expect(result.practiceQuestions![0].correctIndex).toBe(0);
+  });
+
+  it("parses keyTakeaways and relatedConcepts", () => {
+    const raw = '```json\n' + JSON.stringify({
+      concept: "photosynthesis",
+      simpleExplanation: "Plants make food from sunlight",
+      steps: null, formula: null, definition: null, table: null, realWorldExample: null,
+      keyTakeaways: ["Uses CO2", "Produces O2"],
+      relatedConcepts: ["Chlorophyll", "Calvin cycle"],
+    }) + '\n```';
+    const result = parseExplainLlmResponse(raw);
+    expect(result.keyTakeaways).toEqual(["Uses CO2", "Produces O2"]);
+    expect(result.relatedConcepts).toEqual(["Chlorophyll", "Calvin cycle"]);
+  });
+
+  it("parses youtubeSearchQuery", () => {
+    const raw = '```json\n' + JSON.stringify({
+      concept: "mitosis",
+      simpleExplanation: "Cell division",
+      steps: null, formula: null, definition: null, table: null, realWorldExample: null,
+      youtubeSearchQuery: "mitosis explained for students",
+    }) + '\n```';
+    const result = parseExplainLlmResponse(raw);
+    expect(result.youtubeSearchQuery).toBe("mitosis explained for students");
+  });
+
+  it("validates difficultyLevel against known values", () => {
+    const make = (dl: string) => '```json\n' + JSON.stringify({
+      concept: "x", simpleExplanation: "y", steps: null, formula: null,
+      definition: null, table: null, realWorldExample: null, difficultyLevel: dl,
+    }) + '\n```';
+    expect(parseExplainLlmResponse(make("basic")).difficultyLevel).toBe("basic");
+    expect(parseExplainLlmResponse(make("intermediate")).difficultyLevel).toBe("intermediate");
+    expect(parseExplainLlmResponse(make("advanced")).difficultyLevel).toBe("advanced");
+    expect(parseExplainLlmResponse(make("expert")).difficultyLevel).toBeNull();
+  });
+
+  it("returns null for empty string fields (formula, definition, etc)", () => {
+    const raw = '```json\n' + JSON.stringify({
+      concept: "x", simpleExplanation: "y", steps: null, formula: "  ",
+      definition: "", table: null, realWorldExample: null,
+    }) + '\n```';
+    const result = parseExplainLlmResponse(raw);
+    expect(result.formula).toBeNull();
+    expect(result.definition).toBeNull();
+  });
+
+  it("parses raw JSON without fenced block", () => {
+    const raw = JSON.stringify({
+      concept: "x", simpleExplanation: "y", steps: ["step1", "step2"],
+      formula: null, definition: null, table: null, realWorldExample: null,
+    });
+    const result = parseExplainLlmResponse(raw);
+    expect(result.concept).toBe("x");
+    expect(result.steps).toEqual(["step1", "step2"]);
+  });
 });
 
 describe("handleExplain", () => {
@@ -61,5 +131,13 @@ describe("handleExplain", () => {
   it("returns 400 for a null JSON body", async () => {
     const res = await handleExplain(req("null"), env, tenant, ctx);
     expect(res.status).toBe(400);
+  });
+
+  it("returns docSources with filename and page from kept chunks", async () => {
+    const res = await handleExplain(req(JSON.stringify({ concept: "force" })), env, tenant, ctx);
+    const body = (await res.json()) as any;
+    expect(body.docSources).toBeDefined();
+    expect(body.docSources.length).toBeGreaterThan(0);
+    expect(body.docSources[0]).toMatchObject({ filename: "p.pdf", page: 1 });
   });
 });

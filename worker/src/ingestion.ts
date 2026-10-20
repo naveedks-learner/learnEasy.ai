@@ -5,6 +5,7 @@ import { extractPdfPages } from "./pdf";
 import { chunkText } from "./chunker";
 import { enrichPdfToMarkdown, parseEnrichedPages } from "./ingestionEnrichment";
 import { loadConfig } from "./config";
+import { capturePageScreenshots } from "./screenshots";
 
 const EMBED_MODEL = "@cf/baai/bge-base-en-v1.5";
 const UPSERT_BATCH = 100;
@@ -97,6 +98,13 @@ export async function handleIngest(
   const chunks = chunkText(pages);
   if (chunks.length === 0) return json({ error: "No extractable text in PDF" }, 422);
 
+  // Capture screenshots for pages with [Figure:] tags (fails open)
+  const figurePages = new Set<number>();
+  for (const p of pages) {
+    if (p.text.includes("[Figure:")) figurePages.add(p.page);
+  }
+  const capturedPages = await capturePageScreenshots(pages, figurePages, storage, filename, env);
+
   const embeddings: number[][] = [];
   for (let i = 0; i < chunks.length; i += UPSERT_BATCH) {
     const texts = chunks.slice(i, i + UPSERT_BATCH).map((c) => c.text);
@@ -105,18 +113,24 @@ export async function handleIngest(
     embeddings.push(...out.data);
   }
 
-  // pageImageKey is intentionally not emitted: screenshots are not captured yet, so it would dangle.
-  const vectors: VectorizeVector[] = chunks.map((chunk, i) => ({
-    id: storage.vectorId(filename, chunk.chunkIndex),
-    values: embeddings[i],
-    metadata: storage.vectorMeta({
+  const vectors: VectorizeVector[] = chunks.map((chunk, i) => {
+    const meta: Record<string, string> = {
       filename,
       text: chunk.text,
       startPage: String(chunk.startPage),
       endPage: String(chunk.endPage),
       chunkIndex: String(chunk.chunkIndex),
-    }),
-  }));
+    };
+    // Only emit pageImageKey when the screenshot was actually captured
+    if (chunk.pageImageKey && capturedPages.has(chunk.startPage)) {
+      meta.pageImageKey = `${filename}/${chunk.pageImageKey}`;
+    }
+    return {
+      id: storage.vectorId(filename, chunk.chunkIndex),
+      values: embeddings[i],
+      metadata: storage.vectorMeta(meta),
+    };
+  });
 
   for (let i = 0; i < vectors.length; i += UPSERT_BATCH) {
     await env.VECTORIZE.upsert(vectors.slice(i, i + UPSERT_BATCH));
@@ -124,7 +138,6 @@ export async function handleIngest(
 
   if (existing) await deleteStaleArtifacts(env, storage, filename, chunks.length, oldChunkCount);
 
-  // Written last so a failed ingest never leaves a "already indexed" marker behind.
   const enriched = enrichedFullText !== null;
   await env.PDF_BUCKET.put(docKey, pdfBytes, {
     customMetadata: {
@@ -132,9 +145,17 @@ export async function handleIngest(
       pageCount: String(pages.length),
       indexedAt: new Date().toISOString(),
       enriched: String(enriched),
+      screenshotPages: capturedPages.size > 0 ? Array.from(capturedPages).join(",") : "",
     },
   });
   if (enriched) await env.PDF_BUCKET.put(storage.r2Key("cleaned", filename + ".md"), enrichedFullText!);
 
-  return json({ success: true, filename, chunkCount: chunks.length, pageCount: pages.length, enriched });
+  return json({
+    success: true,
+    filename,
+    chunkCount: chunks.length,
+    pageCount: pages.length,
+    enriched,
+    screenshotsCaptured: capturedPages.size,
+  });
 }
