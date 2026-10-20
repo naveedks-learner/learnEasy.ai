@@ -24,22 +24,16 @@ export function ConsentBanner() {
   };
 
   return (
-    <div
-      role="region"
-      aria-label="Privacy notice"
-      className="fixed bottom-0 inset-x-0 z-50 bg-slate-800 text-white text-sm p-3 flex flex-col sm:flex-row items-center gap-3 justify-center"
-    >
-      <p className="max-w-2xl">
+    <div role="region" aria-label="Privacy notice" className="consent">
+      <p style={{ margin: 0 }}>
         This educational service records your questions to improve answers. No personal information is stored. By
         continuing, you agree to our{" "}
-        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">
+        <a href="/privacy" target="_blank" rel="noopener noreferrer">
           Privacy Policy
         </a>
         .
       </p>
-      <button onClick={accept} className="shrink-0 rounded bg-white text-slate-900 font-medium px-4 py-1.5">
-        I Understand
-      </button>
+      <button onClick={accept}>I Understand</button>
     </div>
   );
 }

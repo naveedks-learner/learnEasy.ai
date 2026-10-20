@@ -13,34 +13,33 @@ export default function App() {
   const { tenant, loading, error } = useTenant();
   const [tab, setTab] = useState<Tab>("chat");
 
-  const tabBtn = (id: Tab, label: string) => (
-    <button
-      onClick={() => setTab(id)}
-      className={`flex-1 py-2 text-sm font-medium border-b-2 ${
-        tab === id ? "border-[var(--color-primary)] text-[var(--color-primary)]" : "border-transparent text-slate-500"
-      }`}
-    >
+  const pill = (id: Tab, label: string) => (
+    <button type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className="pill">
       {label}
     </button>
   );
 
   return (
     <TenantThemeProvider tenant={tenant}>
-      <div className="flex flex-col h-dvh">
-        <Header tenant={tenant} />
-        {loading ? (
-          <div className="p-6 text-center"><LoadingSpinner /></div>
-        ) : error ? (
-          <p className="p-6 text-center text-red-700">{error}</p>
-        ) : (
-          <>
-            <nav className="flex bg-white border-b border-slate-200">
-              {tabBtn("chat", "Chat")}
-              {tabBtn("explain", "Concept Explainer")}
-            </nav>
-            <main className="flex-1 min-h-0">{tab === "chat" ? <ChatPage /> : <ExplainerPage />}</main>
-          </>
-        )}
+      <div className="shell">
+        <div className="card">
+          <Header tenant={tenant} />
+          {loading ? (
+            <div className="p-6 text-center">
+              <LoadingSpinner />
+            </div>
+          ) : error ? (
+            <p className="err-box" style={{ margin: 16 }}>{error}</p>
+          ) : (
+            <>
+              <nav className="pills" role="tablist" data-active={tab} aria-label="Mode">
+                {pill("chat", "Chat")}
+                {pill("explain", "Concept Explainer")}
+              </nav>
+              <main className="main">{tab === "chat" ? <ChatPage /> : <ExplainerPage />}</main>
+            </>
+          )}
+        </div>
       </div>
       <ConsentBanner />
     </TenantThemeProvider>

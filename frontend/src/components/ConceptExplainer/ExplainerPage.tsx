@@ -1,12 +1,14 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { postExplain, type ExplainResponse } from "../../api/client";
 import { Formula, Latex } from "../common/Latex";
-import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Thinking } from "../common/LoadingSpinner";
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+const PHRASES = ["Breaking it down…", "Finding the key idea…", "Looking for a good example…", "Making it simple…"];
+
+function Section({ title, children, className = "", delay = 0 }: { title: string; children: ReactNode; className?: string; delay?: number }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-primary)]">{title}</h3>
+    <section className={`sec ${className}`} style={{ animationDelay: `${delay}ms` }}>
+      <h3>{title}</h3>
       {children}
     </section>
   );
@@ -26,11 +28,11 @@ function MarkdownTable({ text }: { text: string }) {
   const rows = lines.slice(2).map(splitRow);
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full text-sm border-collapse">
+      <table className="tbl">
         <thead>
           <tr>
             {headers.map((h, i) => (
-              <th key={i} className="border border-slate-300 bg-slate-100 px-2 py-1 text-left"><Latex text={h} /></th>
+              <th key={i}><Latex text={h} /></th>
             ))}
           </tr>
         </thead>
@@ -38,7 +40,7 @@ function MarkdownTable({ text }: { text: string }) {
           {rows.map((row, i) => (
             <tr key={i}>
               {row.map((c, j) => (
-                <td key={j} className="border border-slate-300 px-2 py-1"><Latex text={c} /></td>
+                <td key={j}><Latex text={c} /></td>
               ))}
             </tr>
           ))}
@@ -70,61 +72,73 @@ export function ExplainerPage() {
 
   const r = result;
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
-      <form onSubmit={submit} className="flex gap-2">
+    <div className="ex-wrap">
+      <form onSubmit={submit} className="ex-form">
         <input
           value={concept}
           onChange={(e) => setConcept(e.target.value)}
           placeholder="Enter a concept, e.g. photosynthesis"
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+          aria-label="Concept"
+          className="input"
         />
-        <button type="submit" disabled={loading || !concept.trim()} className="rounded-lg px-4 py-2 text-white bg-[var(--color-primary)] disabled:opacity-50">
+        <button type="submit" disabled={loading || !concept.trim()} className="ex-btn">
           Explain
         </button>
       </form>
-      {loading && <LoadingSpinner label="Generating explanation" />}
-      {error && <p className="rounded border border-red-200 bg-red-50 p-3 text-red-700">{error}</p>}
-      {r && !loading && (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">{r.concept}</h2>
-          {r.simpleExplanation && (
-            <Section title="Simple explanation">
-              <Latex text={r.simpleExplanation} />
-            </Section>
-          )}
-          {r.definition && (
-            <Section title="Definition">
-              <Latex text={r.definition} />
-            </Section>
-          )}
-          {r.formula && (
-            <Section title="Formula">
-              <Formula tex={r.formula} />
-            </Section>
-          )}
-          {r.steps && r.steps.length > 0 && (
-            <Section title="Steps">
-              <ol className="list-decimal pl-5 space-y-1">
-                {r.steps.map((s, i) => (
-                  <li key={i}>
-                    <Latex text={s} />
-                  </li>
-                ))}
-              </ol>
-            </Section>
-          )}
-          {r.table && (
-            <Section title="Table">
-              <MarkdownTable text={r.table} />
-            </Section>
-          )}
-          {r.realWorldExample && (
-            <Section title="Real-world example">
-              <Latex text={r.realWorldExample} />
-            </Section>
-          )}
-        </div>
-      )}
+      <div className="scroll" style={{ paddingTop: 0 }}>
+        {!r && !loading && !error && (
+          <div className="empty">
+            <div className="orb" aria-hidden="true" />
+            <h2>Concept Explainer</h2>
+            <p>Type any topic and get a clear, structured breakdown.</p>
+          </div>
+        )}
+        {loading && <Thinking phrases={PHRASES} label="Generating explanation" />}
+        {error && <p className="err-box">{error}</p>}
+        {r && !loading && (
+          <>
+            <h2 className="ex-title">{r.concept}</h2>
+            {r.simpleExplanation && (
+              <Section title="Simple explanation">
+                <Latex text={r.simpleExplanation} />
+              </Section>
+            )}
+            {r.definition && (
+              <Section title="Definition" delay={60}>
+                <Latex text={r.definition} />
+              </Section>
+            )}
+            {r.formula && (
+              <Section title="Formula" className="formula" delay={120}>
+                <Formula tex={r.formula} />
+              </Section>
+            )}
+            {r.steps && r.steps.length > 0 && (
+              <Section title="Steps" delay={180}>
+                <ol className="steps">
+                  {r.steps.map((s, i) => (
+                    <li key={i}>
+                      <span style={{ minWidth: 0 }}>
+                        <Latex text={s} />
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </Section>
+            )}
+            {r.table && (
+              <Section title="Table" delay={240}>
+                <MarkdownTable text={r.table} />
+              </Section>
+            )}
+            {r.realWorldExample && (
+              <Section title="Real-world example" delay={300}>
+                <Latex text={r.realWorldExample} />
+              </Section>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
