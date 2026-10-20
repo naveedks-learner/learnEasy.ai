@@ -32,9 +32,13 @@ app.get("/privacy", () => privacyPage());
 
 app.route("/admin", adminRoutes);
 
-// The admin hostname has no tenant row, so its dashboard SPA must be served before tenant resolution.
+// Static assets (hashed bundles, sw.js) and the admin dashboard SPA must be served before tenant resolution.
 app.use("*", async (c, next) => {
   if (isAdminStaticRequest(c.req.raw, c.env)) return serveStaticAsset(c.req.raw, c.env);
+  const path = new URL(c.req.url).pathname;
+  if ((c.req.method === "GET" || c.req.method === "HEAD") && (path.startsWith("/assets/") || path === "/sw.js")) {
+    return serveStaticAsset(c.req.raw, c.env);
+  }
   await next();
 });
 

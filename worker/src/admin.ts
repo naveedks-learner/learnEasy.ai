@@ -34,7 +34,8 @@ adminRoutes.use("*", async (c, next) => {
   const adminHost = c.env.ADMIN_HOSTNAME;
   const cors = buildCorsHeaders(c.req.header("Origin") ?? "", [], adminHost ?? "");
   if (c.req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-  if (adminHost && new URL(c.req.url).host !== adminHost) return c.json({ error: "Not found" }, 404);
+  const skipHostCheck = c.env.ENVIRONMENT === "development" || c.env.ENVIRONMENT === "staging";
+  if (adminHost && !skipHostCheck && new URL(c.req.url).host !== adminHost) return c.json({ error: "Not found" }, 404);
   const key = c.req.header("x-admin-key");
   if (!c.env.ADMIN_API_KEY || key !== c.env.ADMIN_API_KEY) return c.json({ error: "Unauthorized" }, 401);
   await next();

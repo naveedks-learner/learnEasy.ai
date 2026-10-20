@@ -39,8 +39,16 @@ export interface ExplainResponse {
   groundedIn?: "documents" | "general_knowledge" | "both";
 }
 
+function tenantParam(): string {
+  const t = new URLSearchParams(window.location.search).get("tenant");
+  return t ? `?tenant=${encodeURIComponent(t)}` : "";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, init);
+  const sep = path.includes("?") ? "&" : "";
+  const tp = tenantParam();
+  const url = BASE + path + (tp ? (path.includes("?") ? "&" + tp.slice(1) : tp) : "");
+  const res = await fetch(url, init);
   if (!res.ok) {
     let detail = "";
     try {

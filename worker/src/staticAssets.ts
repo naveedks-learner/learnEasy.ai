@@ -3,6 +3,10 @@ import type { Env } from "./env";
 const API_PREFIXES = ["/api/", "/admin", "/health"];
 
 function isAdminHost(req: Request, env: Env): boolean {
+  if (env.ENVIRONMENT === "development" || env.ENVIRONMENT === "staging") {
+    const path = new URL(req.url).pathname;
+    return path === "/dashboard" || path.startsWith("/dashboard/");
+  }
   return !!env.ADMIN_HOSTNAME && new URL(req.url).host === env.ADMIN_HOSTNAME;
 }
 

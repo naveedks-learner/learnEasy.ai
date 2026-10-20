@@ -12,7 +12,7 @@ crons = ["0 3 * * *"]  # daily at 3 AM UTC
 [[d1_databases]]
 binding = "DB"
 database_name = "learneasy-db"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "b482fa7e-0f3e-481d-9ed8-3933a181086b"
 migrations_dir = "migrations"
 
 [[vectorize]]
@@ -48,12 +48,13 @@ crons = ["0 3 * * *"]
 [[env.dev.d1_databases]]
 binding = "DB"
 database_name = "learneasy-db"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "b482fa7e-0f3e-481d-9ed8-3933a181086b"
 migrations_dir = "migrations"
 
 [[env.dev.vectorize]]
 binding = "VECTORIZE"
 index_name = "learneasy-chunks"
+remote = true
 
 [[env.dev.r2_buckets]]
 binding = "PDF_BUCKET"
@@ -82,7 +83,7 @@ crons = ["0 3 * * *"]
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "learneasy-db-staging"
-database_id = "00000000-0000-0000-0000-000000000001"
+database_id = "bd679ba3-6729-4544-85f2-0e17fc597dae"
 migrations_dir = "migrations"
 
 [[env.staging.vectorize]]
