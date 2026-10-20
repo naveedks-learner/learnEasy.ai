@@ -85,7 +85,7 @@ function Dashboard({ onLogout, theme, onToggle }: { onLogout: () => void; theme:
   const [created, setCreated] = useState<TenantConfig | null>(null);
 
   const activeId = tenants.some((t) => t.tenantId === activeTenantId) ? activeTenantId : null;
-  const needsTenant = (tab === "Documents" || tab === "Transactions" || tab === "Settings") && !activeId;
+  const needsTenant = (tab === "Documents" || tab === "Transactions" || tab === "Settings" || tab === "Costing" || tab === "Observability") && !activeId;
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-12 pt-5">
@@ -123,8 +123,8 @@ function Dashboard({ onLogout, theme, onToggle }: { onLogout: () => void; theme:
       {activeId && tab === "Documents" && <DocumentsTab tenantId={activeId} />}
       {activeId && tab === "Transactions" && <TransactionsTab tenantId={activeId} />}
       {activeId && tab === "Settings" && <SettingsTab tenantId={activeId} />}
-      {tab === "Costing" && <CostingTab />}
-      {tab === "Observability" && <ObservabilityTab />}
+      {activeId && tab === "Costing" && <CostingTab tenantId={activeId} />}
+      {activeId && tab === "Observability" && <ObservabilityTab tenantId={activeId} />}
     </div>
   );
 }
