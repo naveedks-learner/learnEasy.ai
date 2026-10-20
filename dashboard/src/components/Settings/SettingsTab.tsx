@@ -15,24 +15,23 @@ function ConfigRow({ k, value, onSave }: { k: string; value: string | number | b
   const save = async (v: string | number | boolean) => {
     try { await onSave(v); setMsg("Saved"); } catch (e) { setMsg((e as Error).message); }
   };
-  const cls = "rounded border border-slate-300 px-2 py-1 text-sm";
   let control;
   if (typeof value === "boolean") {
-    control = <input type="checkbox" checked={value} onChange={(e) => void save(e.target.checked)} />;
+    control = <input type="checkbox" className="check" checked={value} onChange={(e) => void save(e.target.checked)} />;
   } else if (ENUMS[k]) {
-    control = <select className={cls} value={draft} onChange={(e) => void save(e.target.value)}>{ENUMS[k].map((o) => <option key={o}>{o}</option>)}</select>;
+    control = <select className="input input-auto" value={draft} onChange={(e) => void save(e.target.value)}>{ENUMS[k].map((o) => <option key={o}>{o}</option>)}</select>;
   } else {
     control = (
       <>
-        <input className={cls} type={typeof value === "number" ? "number" : "text"} value={draft} onChange={(e) => setDraft(e.target.value)} />
-        <button className="rounded border px-2 py-1 text-sm" onClick={() => void save(typeof value === "number" ? Number(draft) : draft)}>Save</button>
+        <input className="input input-auto" type={typeof value === "number" ? "number" : "text"} value={draft} onChange={(e) => setDraft(e.target.value)} />
+        <button className="btn btn-secondary btn-sm" onClick={() => void save(typeof value === "number" ? Number(draft) : draft)}>Save</button>
       </>
     );
   }
   return (
-    <div className="flex items-center gap-3 border-b py-2">
-      <span className="w-64 font-mono text-sm">{k}</span>{control}
-      {msg && <span className="text-xs text-slate-500">{msg}</span>}
+    <div className="flex flex-wrap items-center gap-3 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+      <span className="mono w-64 text-sm">{k}</span>{control}
+      {msg && <span className="muted text-xs">{msg}</span>}
     </div>
   );
 }
@@ -48,25 +47,28 @@ function TenantDetails({ tenantId }: { tenantId: string }) {
       .catch((e) => { if (!stale) setMsg((e as Error).message); });
     return () => { stale = true; };
   }, [tenantId]);
-  if (!t) return msg ? <p className="text-sm text-red-600">{msg}</p> : null;
+  if (!t) return msg ? <p className="alert alert-error mb-6">{msg}</p> : null;
   const save = async () => {
     try {
       setT(await api.updateTenant(tenantId, { name: t.name, domain: t.domain, theme: t.theme }));
       setMsg("Saved");
     } catch (e) { setMsg((e as Error).message); }
   };
-  const cls = "rounded border border-slate-300 px-2 py-1 text-sm";
   return (
-    <section className="mb-6 space-y-2 rounded-lg border bg-white p-4">
+    <section className="card mb-6 space-y-4">
       <h3 className="font-semibold">School</h3>
-      <label className="block text-sm">Name <input className={cls} value={t.name} onChange={(e) => setT({ ...t, name: e.target.value })} /></label>
-      <label className="block text-sm">Domain <input className={cls} value={t.domain} onChange={(e) => setT({ ...t, domain: e.target.value })} /></label>
-      <div className="flex gap-4 text-sm">
-        <label>Primary <input type="color" value={t.theme.primaryColor} onChange={(e) => setT({ ...t, theme: { ...t.theme, primaryColor: e.target.value } })} /></label>
-        <label>Accent <input type="color" value={t.theme.accentColor} onChange={(e) => setT({ ...t, theme: { ...t.theme, accentColor: e.target.value } })} /></label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="label">Name <input className="input mt-1.5 font-normal" value={t.name} onChange={(e) => setT({ ...t, name: e.target.value })} /></label>
+        <label className="label">Domain <input className="input mt-1.5 font-normal" value={t.domain} onChange={(e) => setT({ ...t, domain: e.target.value })} /></label>
       </div>
-      <button className="rounded bg-blue-600 px-3 py-1 text-sm text-white" onClick={() => void save()}>Save school</button>
-      {msg && <span className="ml-2 text-xs text-slate-500">{msg}</span>}
+      <div className="flex gap-6 text-sm font-semibold">
+        <label className="flex items-center gap-2">Primary <input type="color" className="color-input" value={t.theme.primaryColor} onChange={(e) => setT({ ...t, theme: { ...t.theme, primaryColor: e.target.value } })} /></label>
+        <label className="flex items-center gap-2">Accent <input type="color" className="color-input" value={t.theme.accentColor} onChange={(e) => setT({ ...t, theme: { ...t.theme, accentColor: e.target.value } })} /></label>
+      </div>
+      <div className="flex items-center gap-3">
+        <button className="btn btn-primary" onClick={() => void save()}>Save school</button>
+        {msg && <span className="muted text-xs">{msg}</span>}
+      </div>
     </section>
   );
 }
@@ -85,9 +87,9 @@ export default function SettingsTab({ tenantId }: { tenantId: string }) {
   return (
     <div>
       <TenantDetails tenantId={tenantId} />
-      <h3 className="mb-2 font-semibold">Runtime config</h3>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <div className="rounded-lg border bg-white px-4">
+      <h3 className="mb-3 font-semibold">Runtime config</h3>
+      {error && <p className="alert alert-error mb-3">{error}</p>}
+      <div className="card" style={{ paddingTop: 8, paddingBottom: 8 }}>
         {config && Object.entries(config).map(([k, v]) => (
           <ConfigRow key={k} k={k} value={v} onSave={async (nv) => setConfig(await api.setConfig(tenantId, k, nv))} />
         ))}

@@ -5,9 +5,10 @@ export default function TenantSwitcher({ tenants, activeId, onChange }: {
 }) {
   return (
     <label className="flex items-center gap-2 text-sm">
-      <span className="text-slate-500">School</span>
+      <span className="muted font-medium">School</span>
       <select
-        className="rounded border border-slate-300 bg-white px-2 py-1 font-medium"
+        className="input input-auto font-medium"
+        style={{ minWidth: 180 }}
         value={activeId ?? ""}
         onChange={(e) => onChange(e.target.value)}
       >

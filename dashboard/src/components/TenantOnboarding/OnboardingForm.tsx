@@ -14,8 +14,8 @@ export default function OnboardingForm({ onCreated, onCancel }: {
   const [slugEdited, setSlugEdited] = useState(false);
   const [domain, setDomain] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
-  const [primary, setPrimary] = useState("#2563eb");
-  const [accent, setAccent] = useState("#1e40af");
+  const [primary, setPrimary] = useState("#ee7c5c");
+  const [accent, setAccent] = useState("#a86bd8");
   const [features, setFeatures] = useState({ conceptExplainerEnabled: true, questionPaperEnabled: true, webSearchEnabled: true });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -52,38 +52,60 @@ export default function OnboardingForm({ onCreated, onCancel }: {
     }
   };
 
-  const input = "w-full rounded border border-slate-300 px-2 py-1";
+  const featureLabels: Record<string, string> = {
+    conceptExplainerEnabled: "Concept Explainer",
+    questionPaperEnabled: "Question Papers",
+    webSearchEnabled: "Web Search Fallback",
+  };
+
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="font-semibold">Onboard New School</h3>
-      <label className="block text-sm">School name *
-        <input className={input} value={name} onChange={(e) => { setName(e.target.value); if (!slugEdited) setSlug(slugify(e.target.value)); }} />
-      </label>
-      <label className="block text-sm">Tenant ID
-        <input className={input} value={slug} onChange={(e) => { setSlug(e.target.value); setSlugEdited(true); }} />
-      </label>
-      <label className="block text-sm">Domain *
-        <input className={input} placeholder="chat.school.edu" value={domain} onChange={(e) => setDomain(e.target.value)} />
-      </label>
-      <label className="block text-sm">Logo (optional)
-        <input type="file" accept="image/*" onChange={(e) => onLogo(e.target.files?.[0])} />
-      </label>
-      <div className="flex gap-4 text-sm">
-        <label>Primary color <input type="color" value={primary} onChange={(e) => setPrimary(e.target.value)} /></label>
-        <label>Accent color <input type="color" value={accent} onChange={(e) => setAccent(e.target.value)} /></label>
+    <form onSubmit={submit} className="card" style={{ borderColor: "var(--primary)", boxShadow: "var(--shadow-md)" }}>
+      <div className="mb-2 flex items-center gap-3">
+        <span className="step">1</span>
+        <h3 className="text-lg font-semibold">Register a new school</h3>
       </div>
-      <fieldset className="text-sm">
-        <legend className="text-slate-500">Features</legend>
-        {(Object.keys(features) as Array<keyof typeof features>).map((k) => (
-          <label key={k} className="mr-4 inline-flex items-center gap-1">
-            <input type="checkbox" checked={features[k]} onChange={(e) => setFeatures({ ...features, [k]: e.target.checked })} />{k}
-          </label>
-        ))}
-      </fieldset>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button disabled={busy} className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50">{busy ? "Creating…" : "Create school"}</button>
-        <button type="button" onClick={onCancel} className="rounded border border-slate-300 px-3 py-1 text-sm">Cancel</button>
+      <p className="muted mb-5 text-sm">Fill in the school details below. After saving, you'll get DNS setup instructions.</p>
+
+      <div className="space-y-4">
+        <label className="label">
+          School name <span style={{ color: "var(--error)" }}>*</span>
+          <input className="input mt-1.5 font-normal" value={name} onChange={(e) => { setName(e.target.value); if (!slugEdited) setSlug(slugify(e.target.value)); }} />
+        </label>
+        <label className="label">
+          Tenant ID <span className="hint">(auto-generated, editable)</span>
+          <input className="input mono mt-1.5 font-normal" value={slug} onChange={(e) => { setSlug(e.target.value); setSlugEdited(true); }} />
+        </label>
+        <label className="label">
+          Domain <span style={{ color: "var(--error)" }}>*</span>
+          <input className="input mt-1.5 font-normal" placeholder="chat.school.edu" value={domain} onChange={(e) => setDomain(e.target.value)} />
+          <span className="hint mt-1 block">The hostname students will use to access the chatbot</span>
+        </label>
+        <label className="label">
+          Logo <span className="hint">(optional, max 256KB)</span>
+          <input type="file" accept="image/*" className="input mt-1.5 font-normal" onChange={(e) => onLogo(e.target.files?.[0])} />
+        </label>
+        <div className="flex flex-wrap gap-6 text-sm font-semibold">
+          <label className="flex items-center gap-2">Primary color <input type="color" className="color-input" value={primary} onChange={(e) => setPrimary(e.target.value)} /></label>
+          <label className="flex items-center gap-2">Accent color <input type="color" className="color-input" value={accent} onChange={(e) => setAccent(e.target.value)} /></label>
+        </div>
+        <fieldset className="text-sm" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="label">Features</legend>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {(Object.keys(features) as Array<keyof typeof features>).map((k) => (
+              <label key={k} className="inline-flex items-center gap-2">
+                <input type="checkbox" className="check" checked={features[k]} onChange={(e) => setFeatures({ ...features, [k]: e.target.checked })} />
+                {featureLabels[k] ?? k}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+
+      {error && <p className="alert alert-error mt-4">{error}</p>}
+
+      <div className="mt-5 flex gap-2">
+        <button disabled={busy} className="btn btn-primary">{busy ? "Saving…" : "Save & Continue"}</button>
+        <button type="button" onClick={onCancel} className="btn btn-secondary">Cancel</button>
       </div>
     </form>
   );

@@ -20,33 +20,44 @@ export default function TransactionsTab({ tenantId }: { tenantId: string }) {
   }, [tenantId]);
 
   return (
-    <div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <table className="w-full bg-white text-left text-sm">
-        <thead className="border-b text-slate-500"><tr>
-          <th className="p-2">Time</th><th className="p-2">Path</th><th className="p-2">Question</th><th className="p-2">Model</th><th className="p-2">Tokens</th>
-        </tr></thead>
-        <tbody>
-          {rows.map((t) => (
-            <Fragment key={t.id}>
-              <tr className="cursor-pointer border-b hover:bg-slate-50" onClick={() => setOpen(open === t.id ? null : t.id)}>
-                <td className="p-2 whitespace-nowrap">{t.created_at}</td><td className="p-2">{t.path_taken ?? "–"}</td>
-                <td className="p-2">{(t.question ?? "").slice(0, 80)}{(t.question?.length ?? 0) > 80 ? "…" : ""}</td>
-                <td className="p-2">{t.model ?? "–"}</td><td className="p-2">{t.token_estimate ?? "–"}</td>
-              </tr>
-              {open === t.id && (
-                <tr className="border-b bg-slate-50"><td colSpan={5} className="p-3">
-                  <h4 className="font-semibold">Answer</h4>
-                  <p className="mb-2 whitespace-pre-wrap">{t.answer}</p>
-                  <h4 className="font-semibold">Trace</h4>
-                  <pre className="max-h-96 overflow-auto text-xs">{pretty(t.trace_json)}</pre>
-                </td></tr>
-              )}
-            </Fragment>
-          ))}
-          {rows.length === 0 && <tr><td colSpan={5} className="p-3 text-slate-500">No transactions.</td></tr>}
-        </tbody>
-      </table>
+    <div className="space-y-4">
+      {error && <p className="alert alert-error">{error}</p>}
+      <div className="table-wrap">
+        <table className="table">
+          <thead><tr>
+            <th>Time</th><th>Path</th><th>Question</th><th>Model</th><th>Tokens</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((t) => (
+              <Fragment key={t.id}>
+                <tr className="row-hover cursor-pointer" onClick={() => setOpen(open === t.id ? null : t.id)}>
+                  <td className="muted whitespace-nowrap">{t.created_at}</td>
+                  <td>{t.path_taken ? <span className="badge badge-info">{t.path_taken}</span> : "–"}</td>
+                  <td>{(t.question ?? "").slice(0, 80)}{(t.question?.length ?? 0) > 80 ? "…" : ""}</td>
+                  <td className="mono text-xs">{t.model ?? "–"}</td>
+                  <td className="mono">{t.token_estimate ?? "–"}</td>
+                </tr>
+                {open === t.id && (
+                  <tr style={{ background: "var(--soft)" }}><td colSpan={5}>
+                    <h4 className="metric-label">Answer</h4>
+                    <p className="mb-4 mt-1 whitespace-pre-wrap">{t.answer}</p>
+                    <h4 className="metric-label">Trace</h4>
+                    <pre className="mono mt-1 max-h-96 overflow-auto text-xs">{pretty(t.trace_json)}</pre>
+                  </td></tr>
+                )}
+              </Fragment>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={5}>
+                <div className="empty">
+                  <p className="font-semibold">No transactions yet</p>
+                  <p className="muted text-sm">Student questions and answers will be logged here.</p>
+                </div>
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
