@@ -33,6 +33,7 @@ export async function webSearch(query: string): Promise<WebSearchResult[]> {
   try {
     const resp = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; learnEasyBot/1.0)" },
+      signal: AbortSignal.timeout(10_000),
     });
     if (!resp.ok) return [];
     const html = await resp.text();
@@ -49,7 +50,8 @@ export async function webSearch(query: string): Promise<WebSearchResult[]> {
       });
     }
     return results;
-  } catch {
+  } catch (err) {
+    console.error("[webSearch] DuckDuckGo search failed:", String(err));
     return [];
   }
 }

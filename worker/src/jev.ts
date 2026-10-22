@@ -10,6 +10,7 @@ async function judgeOne(query: string, text: string, env: Env): Promise<{ releva
   const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(30_000),
     body: JSON.stringify({
       model: JEV_MODEL,
       temperature: 0,
@@ -44,12 +45,14 @@ export async function jevFilter(query: string, chunks: Chunk[], config: RuntimeC
         try {
           const { relevance, injection } = await judgeOne(query, c.text, env);
           return { ...c, jevScore: relevance, kept: relevance >= config.jevRelevanceThreshold && !injection };
-        } catch {
+        } catch (err) {
+          console.error("[jev] chunk judgment failed, keeping chunk:", String(err));
           return { ...c, jevScore: 0, kept: true };
         }
       }),
     );
-  } catch {
+  } catch (err) {
+    console.error("[jev] filter failed, passing all chunks:", String(err));
     return passAll();
   }
 }

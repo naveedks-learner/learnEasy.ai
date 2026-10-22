@@ -1,59 +1,70 @@
 /**
  * learnEasy.ai Retrieval & Answer Quality Eval Suite
  *
- * Hits the live deployment (staging or prod) and validates:
- *   1. Retrieval: correct document in top-k, reranker producing scores
- *   2. Answer: non-empty, keyword overlap with expected terms, no error prefixes
- *   3. Source attribution: answer cites the expected document
+ * Inspired by EdukripaLive's eval harness: LLM-judge grading with cheap-keyword fallback,
+ * golden-cases.json with keyFacts, JSON report output.
  *
  * Usage:
- *   npx tsx evals/run-evals.ts                          # staging (default)
+ *   npx tsx evals/run-evals.ts                          # staging (default), LLM judge
  *   npx tsx evals/run-evals.ts --env prod               # production
+ *   npx tsx evals/run-evals.ts --no-judge               # cheap keyword check only (no LLM cost)
  *   npx tsx evals/run-evals.ts --tenant nps              # single tenant
- *   npx tsx evals/run-evals.ts --query "what is myopia"  # single query
- *   npx tsx evals/run-evals.ts --retrieval-only          # skip LLM answer check
+ *   npx tsx evals/run-evals.ts --id eye-1                # single case by id
+ *   npx tsx evals/run-evals.ts --mode chat               # chat cases only
+ *   npx tsx evals/run-evals.ts --mode explain            # explain cases only
+ *   npx tsx evals/run-evals.ts --retrieval-only          # skip answer grading entirely
+ *   npx tsx evals/run-evals.ts --feature-changed "msg"   # label stored in report
+ *   npx tsx evals/run-evals.ts --judge-model slug        # override judge model
  */
 
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { resolve, join } from "path";
 
-// ── Config ──────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────
 
-interface EvalCase {
-  query: string;
-  expectedDoc: string;
-  expectedKeywords: string[];
-  expectedPages?: number[];
-  description?: string;
-}
-
-interface TenantEval {
-  name: string;
-  documents: string[];
-  cases: EvalCase[];
+interface GoldenCase {
+  id: string;
+  mode: "chat" | "explain";
+  docFilename: string | null;
+  question?: string;
+  concept?: string;
+  keyFacts: string[];
+  cheapKeywords: string[];
 }
 
 interface EvalConfig {
   baseUrl: string;
   adminKey: string;
-  tenants: Record<string, TenantEval>;
+  tenants: Record<string, { name: string; documents: string[] }>;
 }
 
-const STOPWORDS = new Set([
-  "a", "an", "the", "is", "are", "was", "were", "what", "which", "who",
-  "how", "why", "when", "where", "do", "does", "did", "of", "in", "on",
-  "to", "and", "or", "for", "explain", "describe", "tell", "me", "about",
-  "it", "its", "this", "that", "be", "been", "being", "have", "has", "had",
-]);
+interface Verdict { pass: boolean; reason: string }
 
-const ERROR_PREFIXES = [
-  "sorry, i hit a",
-  "sorry, i couldn't",
-  "i don't have enough",
-  "i couldn't find",
-];
+interface CaseResult {
+  id: string;
+  mode: string;
+  pass: boolean;
+  reason: string;
+  retrievalMs: number;
+  answerMs: number;
+  retrievalOk: boolean;
+  retrievalDetail?: string;
+  answerText?: string;
+}
 
-// ── CLI Args ────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────
+
+const JUDGE_MODEL_DEFAULT = "openai/gpt-4o-mini";
+
+const JUDGE_SYSTEM_PROMPT =
+  "You are grading a student-facing answer for factual correctness against a list of key facts. " +
+  "Each key fact must be correctly conveyed IN MEANING — paraphrasing, reordering, different wording, or " +
+  "extra correct detail all count as a pass. Only fail if a key fact is actually missing, contradicted, or " +
+  "replaced with something factually wrong. Do not fail for missing elaboration, missing citations, " +
+  "formatting differences, or brevity. Reply with ONLY a JSON object: " +
+  '{"pass": boolean, "reason": "one short sentence"}.';
+
+// ── CLI Args ───────────────────────────────────────────────────────
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -68,303 +79,276 @@ function parseArgs() {
   return opts;
 }
 
-// ── HTTP Helpers ────────────────────────────────────────────────────
+// ── Secrets ────────────────────────────────────────────────────────
 
-async function relevanceCheck(
-  baseUrl: string, adminKey: string, tenantId: string, query: string, topK = 10,
-): Promise<any> {
+function loadDevVars(): Record<string, string> {
+  try {
+    const text = readFileSync(resolve(__dirname, "../worker/.dev.vars"), "utf-8");
+    const out: Record<string, string> = {};
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      out[trimmed.slice(0, eq)] = trimmed.slice(eq + 1).replace(/^"|"$/g, "");
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+// ── HTTP Helpers ───────────────────────────────────────────────────
+
+async function chatQuery(baseUrl: string, adminKey: string, tenantId: string, question: string): Promise<any> {
+  const res = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tenant": tenantId, "x-admin-key": adminKey },
+    body: JSON.stringify({ question }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((body as any).error ?? `chat ${res.status}`);
+  return body;
+}
+
+async function explainQuery(baseUrl: string, adminKey: string, tenantId: string, concept: string): Promise<any> {
+  const res = await fetch(`${baseUrl}/api/explain`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tenant": tenantId, "x-admin-key": adminKey },
+    body: JSON.stringify({ concept }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((body as any).error ?? `explain ${res.status}`);
+  return body;
+}
+
+async function relevanceCheck(baseUrl: string, adminKey: string, tenantId: string, query: string): Promise<any> {
   const res = await fetch(`${baseUrl}/admin/relevance-check`, {
     method: "POST",
     headers: { "x-admin-key": adminKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ tenant_id: tenantId, query, top_k: topK }),
+    body: JSON.stringify({ tenant_id: tenantId, query, top_k: 10 }),
+    signal: AbortSignal.timeout(60_000),
   });
-  if (!res.ok) throw new Error(`relevance-check ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`relevance-check ${res.status}`);
   return res.json();
 }
 
-async function chatQuery(
-  baseUrl: string, adminKey: string, tenantId: string, question: string,
-): Promise<any> {
-  const res = await fetch(`${baseUrl}/api/chat`, {
+// ── Grading ────────────────────────────────────────────────────────
+
+function parseLlmJson(raw: string): any {
+  const attempts = [raw.trim()];
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced) attempts.push(fenced[1]);
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+  if (first !== -1 && last > first) attempts.push(raw.slice(first, last + 1));
+  for (const c of attempts) {
+    try { return JSON.parse(c); } catch { /* try next */ }
+  }
+  throw new Error(`judge returned unparseable JSON: ${raw.slice(0, 200)}`);
+}
+
+async function judgeGrade(openrouterKey: string, judgeModel: string, keyFacts: string[], answerText: string): Promise<Verdict> {
+  const user =
+    `Key facts the answer must correctly convey:\n${keyFacts.map((f) => `- ${f}`).join("\n")}\n\n` +
+    `Actual answer:\n${answerText || "(empty)"}`;
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Tenant": tenantId,
-      "x-admin-key": adminKey,
-    },
-    body: JSON.stringify({ question }),
+    headers: { Authorization: `Bearer ${openrouterKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: judgeModel,
+      messages: [
+        { role: "system", content: JUDGE_SYSTEM_PROMPT },
+        { role: "user", content: user },
+      ],
+      max_tokens: 150,
+    }),
+    signal: AbortSignal.timeout(30_000),
   });
-  if (!res.ok) throw new Error(`chat ${res.status}: ${await res.text()}`);
-  return res.json();
+  if (!res.ok) throw new Error(`OpenRouter judge failed (${res.status})`);
+  const body = await res.json() as any;
+  const content = body.choices?.[0]?.message?.content;
+  if (!content) throw new Error("judge returned no content");
+  const parsed = parseLlmJson(content);
+  return { pass: parsed.pass === true, reason: typeof parsed.reason === "string" ? parsed.reason : "" };
 }
 
-// ── Eval Logic ──────────────────────────────────────────────────────
-
-interface Finding {
-  severity: "FAIL" | "WARN";
-  test: string;
-  detail: string;
+function cheapGrade(cheapKeywords: string[], text: string): Verdict {
+  const haystack = (text || "").toLowerCase();
+  const missing = cheapKeywords.filter((kw) => !haystack.includes(kw.toLowerCase()));
+  return {
+    pass: missing.length === 0,
+    reason: missing.length ? `missing: ${missing.join(", ")}` : "all keywords present",
+  };
 }
 
-function checkRetrieval(data: any, evalCase: EvalCase): Finding[] {
-  const findings: Finding[] = [];
-  const tag = `[retrieval] "${evalCase.query}"`;
-
-  if (!data.results || data.results.length === 0) {
-    findings.push({ severity: "FAIL", test: tag, detail: "0 results returned" });
-    return findings;
-  }
-
-  // Reranker working?
-  if (!data.rerankWorking) {
-    findings.push({ severity: "FAIL", test: tag, detail: "reranker not producing scores" });
-  }
-
-  // Expected doc in top-3?
-  const top3Files = data.results.slice(0, 3).map((r: any) => r.filename);
-  if (!top3Files.includes(evalCase.expectedDoc)) {
-    const allFiles = data.results.map((r: any) => `${r.filename}(rank=${r.rank})`).join(", ");
-    findings.push({
-      severity: "FAIL",
-      test: tag,
-      detail: `expected "${evalCase.expectedDoc}" in top 3, got: ${allFiles}`,
-    });
-  }
-
-  // Expected doc as rank 1?
-  if (data.results[0].filename !== evalCase.expectedDoc) {
-    findings.push({
-      severity: "WARN",
-      test: tag,
-      detail: `rank 1 is "${data.results[0].filename}" (rerank=${data.results[0].rerank}), expected "${evalCase.expectedDoc}"`,
-    });
-  }
-
-  // Expected page in top-3?
-  if (evalCase.expectedPages && evalCase.expectedPages.length > 0) {
-    const top3Pages = data.results.slice(0, 3).map((r: any) => Number(r.page));
-    const foundPage = evalCase.expectedPages.some((p) => top3Pages.includes(p));
-    if (!foundPage) {
-      findings.push({
-        severity: "WARN",
-        test: tag,
-        detail: `expected pages [${evalCase.expectedPages}] in top 3, got pages [${top3Pages}]`,
-      });
-    }
-  }
-
-  // Rerank score separation: top result should be >0.3
-  const topRerank = parseFloat(data.results[0].rerank);
-  if (data.rerankWorking && topRerank < 0.3) {
-    findings.push({
-      severity: "WARN",
-      test: tag,
-      detail: `top rerank score ${topRerank} is below 0.3 — weak relevance`,
-    });
-  }
-
-  return findings;
+function combineExplainText(body: any): string {
+  const tableText = body.table
+    ? (typeof body.table === "string" ? body.table : JSON.stringify(body.table))
+    : "";
+  return [
+    body.simpleExplanation,
+    Array.isArray(body.steps) ? body.steps.join(" ") : "",
+    body.formula,
+    body.definition,
+    tableText,
+    body.realWorldExample,
+  ].filter(Boolean).join("\n");
 }
 
-function checkAnswer(chatResult: any, evalCase: EvalCase): Finding[] {
-  const findings: Finding[] = [];
-  const tag = `[answer] "${evalCase.query}"`;
-
-  const answer = (chatResult.answer || "").trim();
-  if (!answer) {
-    findings.push({ severity: "FAIL", test: tag, detail: "empty answer" });
-    return findings;
-  }
-
-  // Error response?
-  const answerLower = answer.toLowerCase();
-  for (const prefix of ERROR_PREFIXES) {
-    if (answerLower.startsWith(prefix)) {
-      findings.push({ severity: "FAIL", test: tag, detail: `error response: "${answer.slice(0, 100)}"` });
-      return findings;
-    }
-  }
-
-  // Keyword overlap with expected terms
-  const foundKeywords = evalCase.expectedKeywords.filter((kw) => answerLower.includes(kw.toLowerCase()));
-  const missingKeywords = evalCase.expectedKeywords.filter((kw) => !answerLower.includes(kw.toLowerCase()));
-  if (foundKeywords.length === 0) {
-    findings.push({
-      severity: "FAIL",
-      test: tag,
-      detail: `none of expected keywords found: [${evalCase.expectedKeywords.join(", ")}]`,
-    });
-  } else if (missingKeywords.length > 0) {
-    findings.push({
-      severity: "WARN",
-      test: tag,
-      detail: `missing keywords: [${missingKeywords.join(", ")}] (found: [${foundKeywords.join(", ")}])`,
-    });
-  }
-
-  // Question keyword overlap (answer should mention at least one non-stopword from question)
-  const qWords = evalCase.query
-    .split(/\s+/)
-    .map((w) => w.replace(/[.,?!;:]/g, "").toLowerCase())
-    .filter((w) => !STOPWORDS.has(w) && w.length > 2);
-  const hasQuestionWord = qWords.some((w) => answerLower.includes(w));
-  if (!hasQuestionWord) {
-    findings.push({
-      severity: "FAIL",
-      test: tag,
-      detail: `answer doesn't mention any question keyword: [${qWords.join(", ")}]`,
-    });
-  }
-
-  // Source attribution: docSources should include expected document
-  const docSources = chatResult.docSources || [];
-  if (docSources.length > 0) {
-    const sourceFiles = docSources.map((s: any) => s.filename);
-    if (!sourceFiles.includes(evalCase.expectedDoc)) {
-      findings.push({
-        severity: "WARN",
-        test: tag,
-        detail: `docSources [${sourceFiles.join(", ")}] doesn't include "${evalCase.expectedDoc}"`,
-      });
-    }
-  }
-
-  return findings;
-}
-
-// ── Reporter ────────────────────────────────────────────────────────
-
-function printReport(
-  tenantId: string,
-  tenantName: string,
-  results: Array<{ query: string; retrieval: Finding[]; answer: Finding[]; timings: { retrieval: number; answer: number } }>,
-) {
-  const totalCases = results.length;
-  let totalFails = 0;
-  let totalWarns = 0;
-
-  console.log(`\n${"═".repeat(70)}`);
-  console.log(`  EVAL REPORT: ${tenantName} (${tenantId})`);
-  console.log(`${"═".repeat(70)}\n`);
-
-  for (const r of results) {
-    const allFindings = [...r.retrieval, ...r.answer];
-    const fails = allFindings.filter((f) => f.severity === "FAIL");
-    const warns = allFindings.filter((f) => f.severity === "WARN");
-    totalFails += fails.length;
-    totalWarns += warns.length;
-
-    const status = fails.length > 0 ? "❌ FAIL" : warns.length > 0 ? "⚠️  WARN" : "✅ PASS";
-    console.log(`${status}  ${r.query}  (retrieval ${r.timings.retrieval}ms, answer ${r.timings.answer}ms)`);
-
-    for (const f of allFindings) {
-      const icon = f.severity === "FAIL" ? "    ✗" : "    ⚡";
-      console.log(`${icon} ${f.detail}`);
-    }
-  }
-
-  console.log(`\n${"─".repeat(70)}`);
-  console.log(`  Cases: ${totalCases}  |  Fails: ${totalFails}  |  Warns: ${totalWarns}  |  Clean: ${totalCases - results.filter((r) => [...r.retrieval, ...r.answer].some((f) => f.severity === "FAIL")).length}/${totalCases}`);
-  console.log(`${"─".repeat(70)}\n`);
-
-  return totalFails;
-}
-
-// ── Main ────────────────────────────────────────────────────────────
+// ── Main ───────────────────────────────────────────────────────────
 
 async function main() {
   const opts = parseArgs();
   const configPath = resolve(__dirname, "eval-config.json");
   const config: EvalConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+  const golden: { cases: GoldenCase[] } = JSON.parse(readFileSync(resolve(__dirname, "golden-cases.json"), "utf-8"));
 
-  // Resolve base URL
-  if (opts.env === "prod") {
-    config.baseUrl = config.baseUrl.replace("-staging", "");
-  }
+  if (opts.env === "prod") config.baseUrl = config.baseUrl.replace("-staging", "");
 
-  // Resolve admin key from env var or .dev.vars
-  let adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey) {
-    try {
-      const devVars = readFileSync(resolve(__dirname, "../worker/.dev.vars"), "utf-8");
-      const match = devVars.match(/ADMIN_API_KEY="?([^"\n]+)"?/);
-      if (match) adminKey = match[1];
-    } catch { /* ignore */ }
-  }
-  if (!adminKey) {
-    console.error("ERROR: Set ADMIN_API_KEY env var or ensure worker/.dev.vars exists");
+  const devVars = loadDevVars();
+  const adminKey = process.env.ADMIN_API_KEY ?? devVars.ADMIN_API_KEY;
+  if (!adminKey) { console.error("ERROR: Set ADMIN_API_KEY env var or ensure worker/.dev.vars has it"); process.exit(1); }
+
+  const openrouterKey = process.env.OPENROUTER_API_KEY ?? devVars.OPENROUTER_API_KEY ?? "";
+  const useJudge = opts["no-judge"] !== "true";
+  const judgeModel = opts["judge-model"] ?? JUDGE_MODEL_DEFAULT;
+  const retrievalOnly = opts["retrieval-only"] === "true";
+  const filterTenant = opts.tenant ?? "nps";
+  const filterId = opts.id;
+  const filterMode = opts.mode as "chat" | "explain" | undefined;
+  const featureChanged = opts["feature-changed"] ?? null;
+
+  if (useJudge && !openrouterKey) {
+    console.error("OPENROUTER_API_KEY not found. Use --no-judge for cheap keyword fallback.");
     process.exit(1);
   }
 
-  const retrievalOnly = opts["retrieval-only"] === "true";
-  const filterTenant = opts.tenant;
-  const filterQuery = opts.query;
+  let cases = golden.cases;
+  if (filterId) cases = cases.filter((c) => c.id === filterId);
+  if (filterMode) cases = cases.filter((c) => c.mode === filterMode);
 
   console.log(`\n🔬 learnEasy.ai Eval Suite`);
   console.log(`   Target: ${config.baseUrl}`);
-  console.log(`   Mode: ${retrievalOnly ? "retrieval-only" : "full (retrieval + answer)"}`);
-  if (filterTenant) console.log(`   Tenant: ${filterTenant}`);
-  if (filterQuery) console.log(`   Query: "${filterQuery}"`);
+  console.log(`   Tenant: ${filterTenant}`);
+  console.log(`   Cases: ${cases.length}`);
+  console.log(`   Grading: ${useJudge ? `LLM judge (${judgeModel})` : "cheap keyword"}`);
+  console.log(`   Mode: ${retrievalOnly ? "retrieval-only" : filterMode ?? "all"}`);
+  if (featureChanged) console.log(`   Changed: ${featureChanged}`);
   console.log();
 
-  let totalFails = 0;
+  const results: CaseResult[] = [];
 
-  for (const [tenantId, tenant] of Object.entries(config.tenants)) {
-    if (filterTenant && filterTenant !== tenantId) continue;
+  for (const tc of cases) {
+    const query = tc.question ?? tc.concept ?? tc.id;
+    process.stdout.write(`  ⏳ [${tc.id}] ${query.slice(0, 60)}...`);
 
-    let cases = tenant.cases;
-    if (filterQuery) {
-      cases = cases.filter((c) => c.query.toLowerCase().includes(filterQuery.toLowerCase()));
-    }
-    if (cases.length === 0) {
-      console.log(`⏭  Skipping ${tenantId}: no matching cases`);
-      continue;
-    }
+    let retrievalOk = true;
+    let retrievalDetail = "";
+    let retrievalMs = 0;
 
-    const results: Array<{
-      query: string;
-      retrieval: Finding[];
-      answer: Finding[];
-      timings: { retrieval: number; answer: number };
-    }> = [];
+    // Retrieval check
+    try {
+      const t0 = Date.now();
+      const data = await relevanceCheck(config.baseUrl, adminKey, filterTenant, query);
+      retrievalMs = Date.now() - t0;
 
-    for (const evalCase of cases) {
-      process.stdout.write(`  ⏳ ${evalCase.query}...`);
-
-      // Retrieval check
-      let retrievalFindings: Finding[] = [];
-      let retrievalMs = 0;
-      try {
-        const t0 = Date.now();
-        const data = await relevanceCheck(config.baseUrl, adminKey, tenantId, evalCase.query);
-        retrievalMs = Date.now() - t0;
-        retrievalFindings = checkRetrieval(data, evalCase);
-      } catch (e) {
-        retrievalFindings = [{ severity: "FAIL", test: `[retrieval] "${evalCase.query}"`, detail: `error: ${(e as Error).message}` }];
-      }
-
-      // Answer check
-      let answerFindings: Finding[] = [];
-      let answerMs = 0;
-      if (!retrievalOnly) {
-        try {
-          const t0 = Date.now();
-          const chatResult = await chatQuery(config.baseUrl, adminKey, tenantId, evalCase.query);
-          answerMs = Date.now() - t0;
-          answerFindings = checkAnswer(chatResult, evalCase);
-        } catch (e) {
-          answerFindings = [{ severity: "FAIL", test: `[answer] "${evalCase.query}"`, detail: `error: ${(e as Error).message}` }];
+      if (!data.results || data.results.length === 0) {
+        retrievalOk = false;
+        retrievalDetail = "0 results returned";
+      } else if (tc.docFilename) {
+        const top3 = data.results.slice(0, 3).map((r: any) => r.filename);
+        if (!top3.includes(tc.docFilename)) {
+          retrievalOk = false;
+          retrievalDetail = `expected "${tc.docFilename}" in top 3, got: ${top3.join(", ")}`;
         }
       }
-
-      process.stdout.write("\r" + " ".repeat(80) + "\r");
-      results.push({ query: evalCase.query, retrieval: retrievalFindings, answer: answerFindings, timings: { retrieval: retrievalMs, answer: answerMs } });
+    } catch (e) {
+      retrievalOk = false;
+      retrievalDetail = `error: ${(e as Error).message}`;
     }
 
-    totalFails += printReport(tenantId, tenant.name, results);
+    // Answer check
+    let verdict: Verdict = { pass: true, reason: "retrieval-only" };
+    let answerText = "";
+    let answerMs = 0;
+
+    if (!retrievalOnly) {
+      try {
+        const t0 = Date.now();
+        if (tc.mode === "chat") {
+          const chatResult = await chatQuery(config.baseUrl, adminKey, filterTenant, tc.question!);
+          answerMs = Date.now() - t0;
+          answerText = chatResult.answer ?? "";
+        } else {
+          const explainResult = await explainQuery(config.baseUrl, adminKey, filterTenant, tc.concept!);
+          answerMs = Date.now() - t0;
+          answerText = combineExplainText(explainResult);
+        }
+
+        if (!answerText.trim()) {
+          verdict = { pass: false, reason: "empty answer" };
+        } else if (useJudge) {
+          verdict = await judgeGrade(openrouterKey, judgeModel, tc.keyFacts, answerText);
+        } else {
+          verdict = cheapGrade(tc.cheapKeywords, answerText);
+        }
+      } catch (e) {
+        verdict = { pass: false, reason: `error: ${(e as Error).message}` };
+      }
+    }
+
+    const overallPass = retrievalOk && verdict.pass;
+    process.stdout.write("\r" + " ".repeat(100) + "\r");
+
+    const icon = overallPass ? "✅" : !retrievalOk ? "❌" : "⚠️";
+    const timings = `(ret ${retrievalMs}ms${!retrievalOnly ? `, ans ${answerMs}ms` : ""})`;
+    console.log(`${icon} [${tc.id}] ${query.slice(0, 55)} ${timings}`);
+    if (!retrievalOk) console.log(`     ✗ retrieval: ${retrievalDetail}`);
+    if (!verdict.pass && !retrievalOnly) console.log(`     ✗ answer: ${verdict.reason}`);
+
+    results.push({
+      id: tc.id,
+      mode: tc.mode,
+      pass: overallPass,
+      reason: overallPass ? "pass" : [!retrievalOk ? `retrieval: ${retrievalDetail}` : "", !verdict.pass ? `answer: ${verdict.reason}` : ""].filter(Boolean).join("; "),
+      retrievalMs,
+      answerMs,
+      retrievalOk,
+      retrievalDetail: retrievalDetail || undefined,
+      answerText: answerText.slice(0, 500) || undefined,
+    });
   }
 
-  process.exit(totalFails > 0 ? 1 : 0);
+  // Summary
+  const passCount = results.filter((r) => r.pass).length;
+  const failCount = results.length - passCount;
+  console.log(`\n${"─".repeat(60)}`);
+  console.log(`  ${passCount}/${results.length} passed  |  ${failCount} failed`);
+  console.log(`${"─".repeat(60)}\n`);
+
+  // Write JSON report
+  const outDir = resolve(__dirname, "results");
+  mkdirSync(outDir, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const outPath = join(outDir, `${ts}.json`);
+  writeFileSync(outPath, JSON.stringify({
+    timestamp: new Date().toISOString(),
+    baseUrl: config.baseUrl,
+    tenant: filterTenant,
+    gradeMode: useJudge ? "judge" : "cheap",
+    judgeModel: useJudge ? judgeModel : null,
+    featureChanged,
+    passCount,
+    totalCount: results.length,
+    results,
+  }, null, 2));
+  console.log(`Report: ${outPath}\n`);
+
+  process.exit(failCount > 0 ? 1 : 0);
 }
 
 main().catch((e) => {

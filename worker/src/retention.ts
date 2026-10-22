@@ -30,10 +30,11 @@ export async function cleanupExpiredData(env: Env): Promise<RetentionSummary> {
       const config = await loadConfig(tenantId, env.DB);
       const days = Math.floor(config.dataRetentionDays);
       if (Number.isFinite(days) && days >= 1) {
+        const cutoffDate = new Date(Date.now() - days * 86_400_000).toISOString();
         const tx = await env.DB.prepare(
-          `DELETE FROM transactions WHERE tenant_id = ? AND created_at < datetime('now', '-${days} days')`,
+          "DELETE FROM transactions WHERE tenant_id = ? AND created_at < ?",
         )
-          .bind(tenantId)
+          .bind(tenantId, cutoffDate)
           .run();
         summary.transactionsDeleted += tx.meta?.changes ?? 0;
       }

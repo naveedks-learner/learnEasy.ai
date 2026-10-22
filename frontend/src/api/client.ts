@@ -13,6 +13,8 @@ export interface DocSource {
   page?: number;
   snippet?: string;
   pageImageKey?: string;
+  figurePages?: number[];
+  hasFigure?: boolean;
 }
 
 export interface WebSource {
@@ -50,9 +52,10 @@ export interface ExplainResponse {
   practiceQuestions?: PracticeQuestion[] | null;
   groundedIn?: "documents" | "general_knowledge" | "both";
   docSources?: DocSource[];
+  pageImageKey?: string | null;
 }
 
-function tenantParam(): string {
+export function tenantParam(): string {
   const t = new URLSearchParams(window.location.search).get("tenant");
   return t ? `?tenant=${encodeURIComponent(t)}` : "";
 }
@@ -61,11 +64,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const sep = path.includes("?") ? "&" : "";
   const tp = tenantParam();
   const url = BASE + path + (tp ? (path.includes("?") ? "&" + tp.slice(1) : tp) : "");
-  const res = await fetch(url, init);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("Request timed out — please try again.");
+    }
+    throw new Error("Could not reach the server. Please check your connection.");
+  }
+  clearTimeout(timeout);
   if (!res.ok) {
     let detail = "";
     try {
-      const body = (await res.json()) as { error?: string };
+      const body = await res.json().catch(() => ({})) as { error?: string };
       detail = body.error ?? "";
     } catch {
       /* ignore */

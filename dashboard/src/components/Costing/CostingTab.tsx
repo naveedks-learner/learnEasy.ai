@@ -3,6 +3,8 @@ import { api, type Costing } from "../../api/client";
 import PeriodSelector, { type Period, sinceFromPeriod } from "../PeriodSelector";
 
 const PRICING: Record<string, { input: number; output: number; label: string }> = {
+  "google/gemini-2.5-flash": { input: 0.30, output: 2.50, label: "Gemini 2.5 Flash" },
+  "google/gemini-2.5-pro": { input: 1.25, output: 10, label: "Gemini 2.5 Pro" },
   "openai/gpt-4o-mini": { input: 0.165, output: 0.66, label: "GPT-4o Mini" },
   "openai/gpt-4o": { input: 2.5, output: 10, label: "GPT-4o" },
   "qwen/qwen3-235b-a22b:free": { input: 0, output: 0, label: "Qwen3 235B (free)" },
@@ -11,10 +13,14 @@ const PRICING: Record<string, { input: number; output: number; label: string }> 
   "@cf/meta/llama-3.1-8b-instruct-fp8": { input: 0, output: 0, label: "Llama 3.1 (Workers AI)" },
 };
 
-function estimateCost(model: string | null, tokens: number): number {
-  const p = PRICING[model ?? ""] ?? { input: 0.165, output: 0.66 };
+function estimateCost(model: string | null, inputTokens: number, outputTokens: number, totalTokens: number): number {
+  const p = PRICING[model ?? ""];
+  if (!p) return (totalTokens / 1_000_000) * 0.30;
+  if (inputTokens > 0 || outputTokens > 0) {
+    return (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
+  }
   const avgRate = (p.input + p.output) / 2;
-  return (tokens / 1_000_000) * avgRate;
+  return (totalTokens / 1_000_000) * avgRate;
 }
 
 function fmt$(n: number): string {
@@ -55,7 +61,8 @@ export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
   if (error) return <p className="alert alert-error">{error}</p>;
   if (!data) return <p className="muted text-center">Loading…</p>;
 
-  const totalCost = data.breakdown.reduce((s, r) => s + estimateCost(r.model, r.tokens), 0);
+  const totalCost = data.breakdown.reduce((s, r) => s + estimateCost(r.model, r.input_tokens, r.output_tokens, r.tokens), 0);
+  const hasBreakdown = data.totalInputTokens > 0 || data.totalOutputTokens > 0;
 
   return (
     <div className="space-y-4">
@@ -64,7 +71,7 @@ export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
         <PeriodSelector value={period} onChange={setPeriod} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: `repeat(${hasBreakdown ? 5 : 3}, 1fr)` }}>
         <div className="metric">
           <div className="metric-label">Total requests</div>
           <div className="metric-value">{data.totalRequests.toLocaleString()}</div>
@@ -73,6 +80,18 @@ export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
           <div className="metric-label">Total tokens</div>
           <div className="metric-value">{fmtTokens(data.totalTokens)}</div>
         </div>
+        {hasBreakdown && (
+          <>
+            <div className="metric">
+              <div className="metric-label">Input tokens</div>
+              <div className="metric-value">{fmtTokens(data.totalInputTokens)}</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Output tokens</div>
+              <div className="metric-value">{fmtTokens(data.totalOutputTokens)}</div>
+            </div>
+          </>
+        )}
         <div className="metric">
           <div className="metric-label">Estimated cost</div>
           <div className="metric-value">{fmt$(totalCost)}</div>
@@ -82,13 +101,15 @@ export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
       <div className="table-wrap">
         <table className="table">
           <thead><tr>
-            <th>Model</th><th>Provider</th><th>Requests</th><th>Tokens</th>
+            <th>Model</th><th>Provider</th><th>Requests</th>
+            <th>Tokens</th>
+            {hasBreakdown && <><th>Input</th><th>Output</th></>}
             <th>Input rate</th><th>Output rate</th><th>Est. cost</th>
           </tr></thead>
           <tbody>
             {data.breakdown.map((r, i) => {
               const p = PRICING[r.model ?? ""];
-              const cost = estimateCost(r.model, r.tokens);
+              const cost = estimateCost(r.model, r.input_tokens, r.output_tokens, r.tokens);
               return (
                 <tr key={i}>
                   <td>
@@ -98,6 +119,12 @@ export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
                   <td className="text-sm">{r.provider ?? "–"}</td>
                   <td className="mono">{r.requests.toLocaleString()}</td>
                   <td className="mono">{fmtTokens(r.tokens)}</td>
+                  {hasBreakdown && (
+                    <>
+                      <td className="mono">{r.input_tokens > 0 ? fmtTokens(r.input_tokens) : "–"}</td>
+                      <td className="mono">{r.output_tokens > 0 ? fmtTokens(r.output_tokens) : "–"}</td>
+                    </>
+                  )}
                   <td className="mono text-xs">{p ? `$${p.input}/M` : "–"}</td>
                   <td className="mono text-xs">{p ? `$${p.output}/M` : "–"}</td>
                   <td className="mono font-semibold">{fmt$(cost)}</td>
@@ -105,7 +132,7 @@ export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
               );
             })}
             {data.breakdown.length === 0 && (
-              <tr><td colSpan={7}>
+              <tr><td colSpan={hasBreakdown ? 9 : 7}>
                 <div className="empty">
                   <p className="font-semibold">No usage data yet</p>
                   <p className="muted text-sm">Costs will appear as students use the chatbot.</p>
@@ -117,7 +144,7 @@ export default function CostingTab({ tenantId }: { tenantId?: string | null }) {
       </div>
 
       <div className="card" style={{ padding: 16 }}>
-        <h4 className="metric-label mb-2">Pricing reference (OpenRouter)</h4>
+        <h4 className="metric-label mb-2">Pricing reference (OpenRouter, per 1M tokens)</h4>
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
           {Object.entries(PRICING).filter(([, v]) => v.input > 0 || v.output > 0).map(([slug, p]) => (
             <div key={slug} className="text-xs" style={{ background: "var(--soft)", borderRadius: 10, padding: "8px 12px" }}>

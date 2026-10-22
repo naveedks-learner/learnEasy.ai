@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseExplainLlmResponse, handleExplain } from "../src/explain";
+import { parseExplainLlmResponse, handleExplain, isMathProof } from "../src/explain";
 import { DEFAULT_FEATURES, DEFAULT_RATE_LIMITS, DEFAULT_THEME, type TenantConfig } from "../src/tenant";
 
 describe("parseExplainLlmResponse", () => {
@@ -94,6 +94,29 @@ describe("parseExplainLlmResponse", () => {
     const result = parseExplainLlmResponse(raw);
     expect(result.concept).toBe("x");
     expect(result.steps).toEqual(["step1", "step2"]);
+  });
+});
+
+describe("isMathProof", () => {
+  it("detects proof/theorem concepts", () => {
+    expect(isMathProof("Prove that tangent is perpendicular to radius")).toBe(true);
+    expect(isMathProof("proof of Pythagoras theorem")).toBe(true);
+    expect(isMathProof("derive the quadratic formula")).toBe(true);
+    expect(isMathProof("show that sum of angles in a triangle is 180")).toBe(true);
+    expect(isMathProof("theorem of parallel lines")).toBe(true);
+  });
+
+  it("detects computation concepts", () => {
+    expect(isMathProof("Find the radius of the circle")).toBe(true);
+    expect(isMathProof("calculate the area of the triangle")).toBe(true);
+    expect(isMathProof("solve the quadratic equation")).toBe(true);
+  });
+
+  it("does not flag regular science/maths concepts", () => {
+    expect(isMathProof("photosynthesis")).toBe(false);
+    expect(isMathProof("magnetic field due to circular loop")).toBe(false);
+    expect(isMathProof("area of circle")).toBe(false);
+    expect(isMathProof("human eye and defects of vision")).toBe(false);
   });
 });
 

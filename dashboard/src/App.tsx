@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { getAdminKey, setAdminKey, clearAdminKey, type TenantConfig } from "./api/client";
+import { getAdminKey, setAdminKey, clearAdminKey, setOnUnauthorized, validateAdminKey, type TenantConfig } from "./api/client";
 import { useActiveTenant, useTenants } from "./hooks/useTenants";
 import TenantSwitcher from "./components/TenantSwitcher/TenantSwitcher";
 import TenantList from "./components/TenantOnboarding/TenantList";
@@ -82,7 +82,22 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
 
 function KeyGate({ onDone, theme, onToggle }: { onDone: () => void; theme: Theme; onToggle: () => void }) {
   const [key, setKey] = useState("");
-  const submit = (e: FormEvent) => { e.preventDefault(); if (key.trim()) { setAdminKey(key.trim()); onDone(); } };
+  const [validating, setValidating] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!key.trim()) return;
+    setValidating(true);
+    setError("");
+    const ok = await validateAdminKey(key.trim());
+    if (ok) {
+      setAdminKey(key.trim());
+      onDone();
+    } else {
+      setError("Invalid API key. Please try again.");
+    }
+    setValidating(false);
+  };
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="fixed right-4 top-4"><ThemeToggle theme={theme} onToggle={onToggle} /></div>
@@ -91,7 +106,8 @@ function KeyGate({ onDone, theme, onToggle }: { onDone: () => void; theme: Theme
         <h1 className="brand text-2xl">learnEasy</h1>
         <p className="muted mb-6 mt-1 text-sm">Operator dashboard sign in</p>
         <input type="password" className="input mb-4" placeholder="Admin API key" autoFocus value={key} onChange={(e) => setKey(e.target.value)} />
-        <button className="btn btn-primary w-full" disabled={!key.trim()}>Continue</button>
+        {error && <p className="text-sm mb-3" style={{ color: "var(--error)" }}>{error}</p>}
+        <button className="btn btn-primary w-full" disabled={!key.trim() || validating}>{validating ? "Verifying…" : "Continue"}</button>
       </form>
     </div>
   );
@@ -218,6 +234,9 @@ function Dashboard({ onLogout, theme, onToggle }: { onLogout: () => void; theme:
 export default function App() {
   const [hasKey, setHasKey] = useState(!!getAdminKey());
   const { theme, toggle } = useTheme();
+  useEffect(() => {
+    setOnUnauthorized(() => setHasKey(false));
+  }, []);
   if (!hasKey) return <KeyGate onDone={() => setHasKey(true)} theme={theme} onToggle={toggle} />;
   return <Dashboard onLogout={() => { clearAdminKey(); setHasKey(false); }} theme={theme} onToggle={toggle} />;
 }

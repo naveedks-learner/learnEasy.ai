@@ -78,6 +78,41 @@ function TenantDetails({ tenantId }: { tenantId: string }) {
   );
 }
 
+const MODELS_INFO = [
+  { label: "Embedding", model: "@cf/baai/bge-base-en-v1.5", provider: "Workers AI", usage: "Query & document embedding (768-dim)" },
+  { label: "Reranker", model: "@cf/baai/bge-reranker-base", provider: "Workers AI", usage: "Cross-encoder reranking of retrieved chunks" },
+  { label: "Chat/Explain (free)", model: "@cf/meta/llama-3.1-8b-instruct-fp8", provider: "Workers AI", usage: "Fallback when llmProvider = workers-ai" },
+  { label: "Chat/Explain (paid)", model: "Per-tenant llmModelSlug (default: gemini-2.5-flash)", provider: "OpenRouter", usage: "Primary LLM when llmProvider = openrouter" },
+  { label: "Evals Judge", model: "openai/gpt-4o-mini", provider: "OpenRouter", usage: "LLM-as-judge for golden-case evaluation" },
+  { label: "Enrichment", model: "Per-tenant enrichmentModelSlug", provider: "OpenRouter", usage: "Markdown enrichment during PDF ingestion" },
+];
+
+function ModelsCard() {
+  return (
+    <section className="card mb-6">
+      <h3 className="font-semibold mb-3">Models &amp; Infrastructure</h3>
+      <div className="overflow-x-auto">
+        <table className="table text-sm" style={{ minWidth: 600 }}>
+          <thead>
+            <tr><th>Role</th><th>Model</th><th>Provider</th><th>Usage</th></tr>
+          </thead>
+          <tbody>
+            {MODELS_INFO.map((m) => (
+              <tr key={m.label}>
+                <td className="font-medium">{m.label}</td>
+                <td className="mono text-xs">{m.model}</td>
+                <td>{m.provider}</td>
+                <td className="muted">{m.usage}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted text-xs mt-3">Vectorize index: learneasy-chunks · Storage: R2 (learneasy-pdfs) · Database: D1 (learneasy-db)</p>
+    </section>
+  );
+}
+
 export default function SettingsTab({ tenantId }: { tenantId: string }) {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +127,7 @@ export default function SettingsTab({ tenantId }: { tenantId: string }) {
   return (
     <div>
       <TenantDetails tenantId={tenantId} />
+      <ModelsCard />
       <h3 className="mb-3 font-semibold">Runtime config</h3>
       {error && <p className="alert alert-error mb-3">{error}</p>}
       <div className="card" style={{ paddingTop: 8, paddingBottom: 8 }}>

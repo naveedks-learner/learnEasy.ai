@@ -1,11 +1,47 @@
 import katex from "katex";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 
 function render(tex: string, displayMode: boolean) {
   return katex.renderToString(tex, { displayMode, throwOnError: false });
 }
 
-/** Renders text, converting $$..$$, \[..\], $..$ and \(..\) segments with KaTeX. */
+function inlineBold(text: string): ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((part, j) => {
+        const m = part.match(/^\*\*(.+)\*\*$/);
+        if (m) return <strong key={j}>{m[1]}</strong>;
+        return <Fragment key={j}>{part}</Fragment>;
+      })}
+    </>
+  );
+}
+
+function renderMarkdown(text: string): ReactNode[] {
+  const lines = text.split("\n");
+  const elements: ReactNode[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const bulletMatch = line.match(/^(\s*)[-•]\s+(.*)/);
+    const numMatch = line.match(/^(\s*)(\d+)\.\s+(.*)/);
+
+    if (bulletMatch) {
+      elements.push(<div key={i} style={{ paddingLeft: 16 }}>• {inlineBold(bulletMatch[2])}</div>);
+    } else if (numMatch) {
+      elements.push(<div key={i} style={{ paddingLeft: 16 }}>{numMatch[2]}. {inlineBold(numMatch[3])}</div>);
+    } else if (line.trim() === "") {
+      elements.push(<div key={i} style={{ height: 8 }} />);
+    } else {
+      elements.push(<span key={i}>{inlineBold(line)}{i < lines.length - 1 ? "\n" : ""}</span>);
+    }
+  }
+
+  return elements;
+}
+
+/** Renders text with KaTeX math + basic markdown (bold, bullets, numbered lists). */
 export function Latex({ text }: { text: string }) {
   const re = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^$\n]+?)\$/g;
   const parts: Array<{ t: "text" | "block" | "inline"; v: string }> = [];
@@ -23,7 +59,7 @@ export function Latex({ text }: { text: string }) {
     <span className="whitespace-pre-wrap">
       {parts.map((p, i) =>
         p.t === "text" ? (
-          <Fragment key={i}>{p.v}</Fragment>
+          <Fragment key={i}>{renderMarkdown(p.v)}</Fragment>
         ) : (
           <span key={i} dangerouslySetInnerHTML={{ __html: render(p.v, p.t === "block") }} />
         ),

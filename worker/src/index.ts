@@ -18,7 +18,8 @@ const app = new Hono<AppEnv>();
 
 app.onError((err, c) => {
   console.error("Unhandled error:", err.message, err.stack);
-  return c.json({ error: err.message || "Internal server error" }, 500);
+  const isDev = c.env.ENVIRONMENT === "development" || c.env.ENVIRONMENT === "staging";
+  return c.json({ error: isDev ? err.message : "Something went wrong — please try again." }, 500);
 });
 
 app.get("/health", async (c) => {
@@ -78,6 +79,21 @@ app.get("/manifest.json", (c) => {
     theme_color: t.theme.primaryColor,
     background_color: "#ffffff",
     icons: t.logoUrl ? [{ src: t.logoUrl, sizes: "192x192", type: "image/png" }] : [],
+  });
+});
+
+app.get("/api/docs/:filename", async (c) => {
+  const storage = new TenantStorage(c.get("tenant").tenantId, c.env);
+  const filename = storage.sanitizeFilename(c.req.param("filename"));
+  if (!filename) return c.json({ error: "Invalid filename" }, 400);
+  const obj = await c.env.PDF_BUCKET.get(storage.r2Key("docs", filename));
+  if (!obj) return c.json({ error: "Not found" }, 404);
+  return new Response(obj.body, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "private, max-age=300",
+    },
   });
 });
 

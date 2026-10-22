@@ -24,7 +24,8 @@ export async function checkRateLimit(
       .bind(tenantId, window)
       .run();
     return { allowed: true, remaining: limit - count - 1 };
-  } catch {
+  } catch (err) {
+    console.error("[rateLimit] D1 error, failing open:", String(err));
     return { allowed: true, remaining: -1 };
   }
 }

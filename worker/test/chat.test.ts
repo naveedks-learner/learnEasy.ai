@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleChat } from "../src/chat";
+import { handleChat, parseShowFigures } from "../src/chat";
 import { DEFAULT_FEATURES, DEFAULT_RATE_LIMITS, DEFAULT_THEME, type TenantConfig } from "../src/tenant";
 
 interface MockOpts {
@@ -160,5 +160,24 @@ describe("handleChat", () => {
       return baseRun(model, input);
     };
     await expect(handleChat(chatRequest("q"), env, mockTenant("t1"), mockCtx())).rejects.toThrow("llm down");
+  });
+});
+
+describe("parseShowFigures", () => {
+  it("extracts figures from SHOW_FIGURES line", () => {
+    const text = "Here is the answer.\n\n📄 Source: Physics.pdf, page 6\nSHOW_FIGURES: Physics.pdf:6, Physics.pdf:7";
+    const { cleanText, selectedFigures } = parseShowFigures(text);
+    expect(cleanText).toBe("Here is the answer.\n\n📄 Source: Physics.pdf, page 6");
+    expect(selectedFigures).toEqual([
+      { filename: "Physics.pdf", page: 6 },
+      { filename: "Physics.pdf", page: 7 },
+    ]);
+  });
+
+  it("returns empty array when no SHOW_FIGURES line", () => {
+    const text = "Just an answer with no figures.";
+    const { cleanText, selectedFigures } = parseShowFigures(text);
+    expect(cleanText).toBe(text);
+    expect(selectedFigures).toEqual([]);
   });
 });

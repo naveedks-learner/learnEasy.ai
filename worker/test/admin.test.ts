@@ -135,7 +135,7 @@ describe("admin routes", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       ok: true,
-      deleted: { transactions: 2, config: 2, rateLimits: 2, r2Objects: 3 },
+      deleted: { transactions: 2, config: 2, rateLimits: 2, r2Objects: 3, vectorIds: 0 },
     });
     for (const table of ["transactions", "config", "rate_limits", "question_paper_cache"]) {
       expect(calls.some((c) => c.sql.startsWith(`DELETE FROM ${table}`) && c.args[0] === "a")).toBe(true);

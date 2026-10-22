@@ -36,6 +36,9 @@ coverage/
 *.tmp
 *.log
 
+# Eval results
+evals/results/
+
 # Combined static build staged for the worker
 worker/public/*
 !worker/public/.gitkeep

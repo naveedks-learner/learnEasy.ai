@@ -12,14 +12,16 @@ export interface TenantStats { tenantId: string; documentCount: number; transact
 export interface DocumentInfo {
   name: string; size: number; uploaded: string;
   chunkCount: number | null; pageCount: number | null; indexedAt: string | null; enriched: boolean;
+  screenshotPages: string | null;
 }
 export interface Transaction {
   id: number; tenant_id: string; path_taken: string | null; question: string | null; answer: string | null;
-  model: string | null; provider: string | null; trace_json: string | null; token_estimate: number | null; created_at: string;
+  model: string | null; provider: string | null; trace_json: string | null; token_estimate: number | null;
+  input_tokens: number | null; output_tokens: number | null; created_at: string;
 }
 export interface Costing {
-  totalRequests: number; totalTokens: number;
-  breakdown: Array<{ provider: string | null; model: string | null; requests: number; tokens: number }>;
+  totalRequests: number; totalTokens: number; totalInputTokens: number; totalOutputTokens: number;
+  breakdown: Array<{ provider: string | null; model: string | null; requests: number; tokens: number; input_tokens: number; output_tokens: number }>;
 }
 export type RuntimeConfig = Record<string, string | number | boolean | null>;
 
@@ -40,19 +42,37 @@ export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
+let onUnauthorized: (() => void) | null = null;
+export function setOnUnauthorized(cb: () => void) { onUnauthorized = cb; }
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { "x-admin-key": getAdminKey() ?? "" };
   if (typeof init.body === "string") headers["content-type"] = "application/json";
   const res = await fetch(`${BASE}${path}`, { ...init, headers });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    clearAdminKey();
+    onUnauthorized?.();
+  }
   if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error ?? `Request failed (${res.status})`);
   return data as T;
+}
+
+export async function validateAdminKey(key: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE}/admin/tenants`, { headers: { "x-admin-key": key } });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 const q = (tenantId: string) => `tenant_id=${encodeURIComponent(tenantId)}`;
 const json = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body) });
 
 export const api = {
+  base: BASE,
+  getAdminKey,
   listTenants: () => request<{ tenants: TenantConfig[] }>("/admin/tenants").then((r) => r.tenants),
   createTenant: (t: Partial<TenantConfig>) => request<{ tenant: TenantConfig }>("/admin/tenants", json("POST", t)).then((r) => r.tenant),
   updateTenant: (id: string, t: Partial<TenantConfig>) =>
@@ -73,6 +93,16 @@ export const api = {
   config: (id: string) => request<{ config: RuntimeConfig }>(`/admin/config?${q(id)}`).then((r) => r.config),
   setConfig: (id: string, key: string, value: string | number | boolean) =>
     request<{ config: RuntimeConfig }>(`/admin/config?${q(id)}`, json("PUT", { key, value })).then((r) => r.config),
+  retryScreenshots: (id: string, name: string) =>
+    request<{ success: true; screenshotsCaptured: number; figurePages?: number[]; screenshotWarnings?: string[] }>(
+      `/admin/documents/${encodeURIComponent(name)}/screenshots?${q(id)}`,
+      { method: "POST" },
+    ),
+  reingest: (id: string, name: string) =>
+    request<{ success: true; filename: string; chunkCount: number; pageCount: number; enriched: boolean; screenshotsCaptured: number }>(
+      `/admin/documents/${encodeURIComponent(name)}/reingest?${q(id)}`,
+      { method: "POST" },
+    ),
   /** Ingest a PDF for a tenant via the X-Tenant override (honoured by the worker in development mode only). */
   ingest: async (id: string, file: File, ingestKey: string, force = false) => {
     const form = new FormData();

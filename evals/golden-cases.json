@@ -1,0 +1,408 @@
+{
+  "cases": [
+    {
+      "id": "eye-1",
+      "mode": "chat",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "question": "What is myopia and how is it corrected?",
+      "keyFacts": [
+        "myopia is also called near-sightedness or short-sightedness",
+        "a person with myopia can see nearby objects clearly but cannot see distant objects clearly",
+        "it is corrected using a concave lens of suitable power"
+      ],
+      "cheapKeywords": ["myopia", "concave", "distant"]
+    },
+    {
+      "id": "eye-2",
+      "mode": "chat",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "question": "Why does the sky appear blue?",
+      "keyFacts": [
+        "sunlight is scattered by the atmosphere",
+        "shorter wavelengths (blue) are scattered more than longer wavelengths",
+        "this is why the sky appears blue to an observer on Earth"
+      ],
+      "cheapKeywords": ["scatter", "shorter wavelength", "blue"]
+    },
+    {
+      "id": "eye-3",
+      "mode": "chat",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "question": "What is the Tyndall effect?",
+      "keyFacts": [
+        "the Tyndall effect is the scattering of light by colloidal particles",
+        "the path of a beam of light passing through a true solution is not visible, but is visible through a colloidal solution"
+      ],
+      "cheapKeywords": ["scattering", "colloidal", "particles"]
+    },
+    {
+      "id": "eye-4",
+      "mode": "chat",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "question": "What is dispersion of light and what happens when white light passes through a prism?",
+      "keyFacts": [
+        "dispersion is the splitting of white light into its component colours",
+        "when white light passes through a glass prism, it splits into a band of colours called a spectrum",
+        "the order of colours is VIBGYOR: violet, indigo, blue, green, yellow, orange, red"
+      ],
+      "cheapKeywords": ["prism", "spectrum", "VIBGYOR"]
+    },
+    {
+      "id": "eye-5",
+      "mode": "chat",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "question": "What is the power of accommodation of the human eye?",
+      "keyFacts": [
+        "the ability of the eye lens to adjust its focal length is called the power of accommodation",
+        "the ciliary muscles adjust the focal length by changing the curvature of the eye lens"
+      ],
+      "cheapKeywords": ["focal length", "ciliary", "accommodation"]
+    },
+    {
+      "id": "eye-6",
+      "mode": "chat",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "question": "Why do stars appear to twinkle at night?",
+      "keyFacts": [
+        "stars twinkle because of atmospheric refraction of starlight",
+        "the apparent position of the star fluctuates slightly due to changing refractive index of the atmosphere",
+        "stars are point-sized sources of light, so the fluctuation in their brightness is noticeable"
+      ],
+      "cheapKeywords": ["atmospheric refraction", "point", "fluctuat"]
+    },
+    {
+      "id": "eye-7",
+      "mode": "chat",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "question": "What is hypermetropia?",
+      "keyFacts": [
+        "hypermetropia is also called far-sightedness or long-sightedness",
+        "a person with hypermetropia can see distant objects clearly but cannot see nearby objects clearly",
+        "it is corrected using a convex lens of appropriate power"
+      ],
+      "cheapKeywords": ["hypermetropia", "convex", "nearby"]
+    },
+    {
+      "id": "eye-8",
+      "mode": "chat",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "question": "What is the function of the iris in the human eye?",
+      "keyFacts": [
+        "the iris is a dark muscular diaphragm that controls the size of the pupil",
+        "it regulates the amount of light entering the eye"
+      ],
+      "cheapKeywords": ["iris", "pupil", "light"]
+    },
+    {
+      "id": "control-1",
+      "mode": "chat",
+      "docFilename": "ControlAndCoordination.pdf",
+      "question": "What is a reflex action? Give an example.",
+      "keyFacts": [
+        "a reflex action is a sudden, involuntary, automatic response to a stimulus",
+        "the reflex arc is the pathway: receptor → sensory neuron → spinal cord → motor neuron → effector",
+        "examples include pulling the hand away from a hot object or knee-jerk reflex"
+      ],
+      "cheapKeywords": ["involuntary", "spinal cord", "stimulus"]
+    },
+    {
+      "id": "control-2",
+      "mode": "chat",
+      "docFilename": "ControlAndCoordination.pdf",
+      "question": "What are the functions of the three main parts of the human brain?",
+      "keyFacts": [
+        "the cerebrum controls voluntary actions, thinking, memory and sensations",
+        "the cerebellum controls balance and coordination of voluntary movements",
+        "the medulla oblongata controls involuntary actions like breathing, heartbeat, and blood pressure"
+      ],
+      "cheapKeywords": ["cerebrum", "cerebellum", "medulla"]
+    },
+    {
+      "id": "control-3",
+      "mode": "chat",
+      "docFilename": "ControlAndCoordination.pdf",
+      "question": "What are hormones and how do they differ from nerve impulses?",
+      "keyFacts": [
+        "hormones are chemical messengers secreted by endocrine glands directly into the blood",
+        "unlike nerve impulses which are fast and targeted, hormonal responses are slower but longer lasting"
+      ],
+      "cheapKeywords": ["chemical", "gland", "blood"]
+    },
+    {
+      "id": "control-4",
+      "mode": "chat",
+      "docFilename": "ControlAndCoordination.pdf",
+      "question": "What is the role of auxin in plant movement?",
+      "keyFacts": [
+        "auxin is a plant hormone that promotes cell elongation",
+        "when light falls on one side of a plant shoot, auxin diffuses to the shaded side",
+        "the cells on the shaded side elongate more, causing the shoot to bend towards light (phototropism)"
+      ],
+      "cheapKeywords": ["auxin", "elongat", "light"]
+    },
+    {
+      "id": "control-5",
+      "mode": "chat",
+      "docFilename": "ControlAndCoordination.pdf",
+      "question": "Which gland is called the master gland and why?",
+      "keyFacts": [
+        "the pituitary gland is called the master gland",
+        "it controls the secretion of hormones from many other endocrine glands"
+      ],
+      "cheapKeywords": ["pituitary", "master"]
+    },
+    {
+      "id": "magnetic-1",
+      "mode": "chat",
+      "docFilename": "MagneticEffects-ElectricCurrent.pdf",
+      "question": "What is a solenoid and what does its magnetic field look like?",
+      "keyFacts": [
+        "a solenoid is a coil of many circular turns of insulated copper wire wrapped closely in the shape of a cylinder",
+        "the magnetic field inside a solenoid is uniform and similar to that of a bar magnet",
+        "one end of the solenoid acts as a north pole and the other as a south pole"
+      ],
+      "cheapKeywords": ["solenoid", "uniform", "bar magnet"]
+    },
+    {
+      "id": "magnetic-2",
+      "mode": "chat",
+      "docFilename": "MagneticEffects-ElectricCurrent.pdf",
+      "question": "State Fleming's left-hand rule.",
+      "keyFacts": [
+        "stretch the thumb, forefinger, and middle finger of the left hand mutually perpendicular to each other",
+        "the forefinger points in the direction of the magnetic field",
+        "the middle finger points in the direction of the current",
+        "the thumb gives the direction of the force (or motion) on the conductor"
+      ],
+      "cheapKeywords": ["Fleming", "forefinger", "thumb", "force"]
+    },
+    {
+      "id": "magnetic-3",
+      "mode": "chat",
+      "docFilename": "MagneticEffects-ElectricCurrent.pdf",
+      "question": "What is an electric fuse and how does it protect a circuit?",
+      "keyFacts": [
+        "an electric fuse is a safety device that protects circuits from overloading and short-circuiting",
+        "it is made of a wire with a low melting point",
+        "when excessive current flows, the fuse wire heats up and melts, breaking the circuit"
+      ],
+      "cheapKeywords": ["fuse", "melts", "circuit"]
+    },
+    {
+      "id": "magnetic-4",
+      "mode": "chat",
+      "docFilename": "MagneticEffects-ElectricCurrent.pdf",
+      "question": "What is the right-hand thumb rule?",
+      "keyFacts": [
+        "the right-hand thumb rule gives the direction of the magnetic field around a current-carrying conductor",
+        "if you wrap your right hand around the conductor with the thumb pointing in the direction of current, the curled fingers show the direction of the magnetic field"
+      ],
+      "cheapKeywords": ["right-hand", "thumb", "magnetic field", "current"]
+    },
+    {
+      "id": "magnetic-5",
+      "mode": "chat",
+      "docFilename": "MagneticEffects-ElectricCurrent.pdf",
+      "question": "What is the difference between a short circuit and an overload?",
+      "keyFacts": [
+        "a short circuit occurs when the live and neutral wires come in direct contact, causing a very large current to flow",
+        "an overload occurs when too many appliances are connected to a single circuit, drawing more current than the wiring can safely carry"
+      ],
+      "cheapKeywords": ["short circuit", "overload"]
+    },
+    {
+      "id": "magnetic-6",
+      "mode": "chat",
+      "docFilename": "MagneticEffects-ElectricCurrent.pdf",
+      "question": "What are magnetic field lines and what are their properties?",
+      "keyFacts": [
+        "magnetic field lines are imaginary lines that represent the direction of the magnetic field",
+        "they emerge from the north pole and merge at the south pole",
+        "no two field lines are found to cross each other",
+        "the closeness of field lines indicates the strength of the field"
+      ],
+      "cheapKeywords": ["field lines", "north pole", "south pole", "cross"]
+    },
+    {
+      "id": "circles-1",
+      "mode": "chat",
+      "docFilename": "Circles.pdf",
+      "question": "What is a tangent to a circle?",
+      "keyFacts": [
+        "a tangent to a circle is a line that intersects the circle at exactly one point",
+        "the point where the tangent touches the circle is called the point of contact"
+      ],
+      "cheapKeywords": ["tangent", "one point", "contact"]
+    },
+    {
+      "id": "circles-2",
+      "mode": "chat",
+      "docFilename": "Circles.pdf",
+      "question": "Prove that the tangent at any point of a circle is perpendicular to the radius through the point of contact.",
+      "keyFacts": [
+        "the tangent at any point of a circle is perpendicular to the radius through the point of contact",
+        "this is Theorem 10.1 in NCERT",
+        "the proof uses the fact that the radius is the shortest distance from the centre to the tangent line"
+      ],
+      "cheapKeywords": ["perpendicular", "radius", "point of contact"]
+    },
+    {
+      "id": "circles-3",
+      "mode": "chat",
+      "docFilename": "Circles.pdf",
+      "question": "How many tangents can be drawn to a circle from an external point?",
+      "keyFacts": [
+        "exactly two tangents can be drawn to a circle from an external point",
+        "the lengths of these two tangents are equal"
+      ],
+      "cheapKeywords": ["two tangent", "external point", "equal"]
+    },
+    {
+      "id": "circles-4",
+      "mode": "chat",
+      "docFilename": "Circles.pdf",
+      "question": "What is a secant of a circle?",
+      "keyFacts": [
+        "a secant is a line that intersects a circle at two points"
+      ],
+      "cheapKeywords": ["secant", "two points"]
+    },
+    {
+      "id": "cross-doc-1",
+      "mode": "chat",
+      "docFilename": null,
+      "question": "Compare how the nervous system and hormones coordinate body functions differently.",
+      "keyFacts": [
+        "the nervous system uses electrical impulses for fast, precise, short-duration responses",
+        "hormones are chemical messengers that travel through the blood and produce slower, longer-lasting, more widespread responses"
+      ],
+      "cheapKeywords": ["nervous", "hormone", "fast", "slow"]
+    },
+    {
+      "id": "cross-doc-2",
+      "mode": "chat",
+      "docFilename": null,
+      "question": "What is the connection between the magnetic field around a solenoid and a bar magnet?",
+      "keyFacts": [
+        "the magnetic field pattern of a solenoid is similar to that of a bar magnet",
+        "one end of the solenoid acts as a north pole and the other as a south pole"
+      ],
+      "cheapKeywords": ["solenoid", "bar magnet", "similar"]
+    },
+    {
+      "id": "explain-eye-1",
+      "mode": "explain",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "concept": "dispersion of light through a prism",
+      "keyFacts": [
+        "dispersion is the splitting of white light into its component colours",
+        "a glass prism produces a spectrum with the colours VIBGYOR",
+        "different colours have different wavelengths and are refracted by different amounts"
+      ],
+      "cheapKeywords": ["prism", "spectrum", "VIBGYOR"]
+    },
+    {
+      "id": "explain-eye-2",
+      "mode": "explain",
+      "docFilename": "HumanEye-ColourfulWorld.pdf",
+      "concept": "power of accommodation of the human eye",
+      "keyFacts": [
+        "power of accommodation is the ability of the eye lens to adjust its focal length",
+        "the ciliary muscles change the curvature of the lens to focus on near or distant objects"
+      ],
+      "cheapKeywords": ["focal length", "ciliary", "accommodation"]
+    },
+    {
+      "id": "explain-control-1",
+      "mode": "explain",
+      "docFilename": "ControlAndCoordination.pdf",
+      "concept": "reflex arc and reflex action",
+      "keyFacts": [
+        "a reflex action is a sudden involuntary response to a stimulus",
+        "the reflex arc is: receptor → sensory neuron → spinal cord (relay neuron) → motor neuron → effector"
+      ],
+      "cheapKeywords": ["involuntary", "spinal cord", "receptor", "effector"]
+    },
+    {
+      "id": "explain-control-2",
+      "mode": "explain",
+      "docFilename": "ControlAndCoordination.pdf",
+      "concept": "plant hormones and their functions",
+      "keyFacts": [
+        "auxin promotes cell elongation and phototropism",
+        "gibberellins promote stem growth",
+        "cytokinins promote cell division",
+        "abscisic acid inhibits growth and causes wilting of leaves"
+      ],
+      "cheapKeywords": ["auxin", "gibberellin", "cytokinin"]
+    },
+    {
+      "id": "explain-magnetic-1",
+      "mode": "explain",
+      "docFilename": "MagneticEffects-ElectricCurrent.pdf",
+      "concept": "solenoid as an electromagnet",
+      "keyFacts": [
+        "a solenoid is a coil of insulated copper wire wound in a cylindrical shape",
+        "when current flows through a solenoid, it produces a magnetic field similar to a bar magnet",
+        "placing a soft iron core inside increases the magnetic field strength, making it an electromagnet"
+      ],
+      "cheapKeywords": ["solenoid", "electromagnet", "bar magnet"]
+    },
+    {
+      "id": "explain-magnetic-2",
+      "mode": "explain",
+      "docFilename": "MagneticEffects-ElectricCurrent.pdf",
+      "concept": "Fleming's left-hand rule for force on a current-carrying conductor",
+      "keyFacts": [
+        "Fleming's left-hand rule determines the direction of force on a current-carrying conductor in a magnetic field",
+        "forefinger = magnetic field direction, middle finger = current direction, thumb = force/motion direction"
+      ],
+      "cheapKeywords": ["Fleming", "forefinger", "current", "force"]
+    },
+    {
+      "id": "explain-circles-1",
+      "mode": "explain",
+      "docFilename": "Circles.pdf",
+      "concept": "tangent to a circle and its properties",
+      "keyFacts": [
+        "a tangent touches the circle at exactly one point called the point of contact",
+        "the tangent is perpendicular to the radius at the point of contact",
+        "two tangents from an external point are equal in length"
+      ],
+      "cheapKeywords": ["tangent", "perpendicular", "radius", "equal"]
+    },
+    {
+      "id": "negation-1",
+      "mode": "chat",
+      "docFilename": null,
+      "question": "Can a person with myopia see distant objects clearly?",
+      "keyFacts": [
+        "no, a person with myopia cannot see distant objects clearly",
+        "myopia means they can see nearby objects clearly but distant objects appear blurry"
+      ],
+      "cheapKeywords": ["cannot", "distant", "blurry"]
+    },
+    {
+      "id": "negation-2",
+      "mode": "chat",
+      "docFilename": null,
+      "question": "Do two magnetic field lines ever cross each other?",
+      "keyFacts": [
+        "no, two magnetic field lines never cross or intersect each other",
+        "if they did cross, the compass needle would point in two directions at the same point, which is impossible"
+      ],
+      "cheapKeywords": ["never", "cross", "two directions"]
+    },
+    {
+      "id": "multi-hop-1",
+      "mode": "chat",
+      "docFilename": null,
+      "question": "If the ciliary muscles of a person cannot adjust the eye lens for near vision, what defect does the person have and what lens is used to correct it?",
+      "keyFacts": [
+        "the person has hypermetropia (far-sightedness)",
+        "a convex lens is used to correct it"
+      ],
+      "cheapKeywords": ["hypermetropia", "convex"]
+    }
+  ]
+}

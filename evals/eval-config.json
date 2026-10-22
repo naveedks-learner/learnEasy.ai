@@ -5,88 +5,11 @@
   "tenants": {
     "nps": {
       "name": "NPS School (staging)",
-      "documents": ["HumanEye-ColourfulWorld.pdf", "ControlAndCoordination.pdf"],
-      "cases": [
-        {
-          "query": "what is myopia",
-          "expectedDoc": "HumanEye-ColourfulWorld.pdf",
-          "expectedKeywords": ["near-sightedness", "concave", "distant objects"],
-          "expectedPages": [2, 3],
-          "description": "Core definition from section 10.2"
-        },
-        {
-          "query": "how is hypermetropia corrected",
-          "expectedDoc": "HumanEye-ColourfulWorld.pdf",
-          "expectedKeywords": ["convex", "far-sightedness", "near point"],
-          "expectedPages": [3],
-          "description": "Correction method from section 10.2"
-        },
-        {
-          "query": "what is dispersion of light",
-          "expectedDoc": "HumanEye-ColourfulWorld.pdf",
-          "expectedKeywords": ["spectrum", "prism", "colours", "VIBGYOR"],
-          "expectedPages": [6, 7],
-          "description": "Dispersion definition from section 10.4"
-        },
-        {
-          "query": "why do stars twinkle",
-          "expectedDoc": "HumanEye-ColourfulWorld.pdf",
-          "expectedKeywords": ["atmospheric", "refraction", "point-sized"],
-          "expectedPages": [8],
-          "description": "Atmospheric refraction from section 10.5"
-        },
-        {
-          "query": "what is tyndall effect",
-          "expectedDoc": "HumanEye-ColourfulWorld.pdf",
-          "expectedKeywords": ["scattering", "colloidal", "particles"],
-          "expectedPages": [9],
-          "description": "Scattering from section 10.6"
-        },
-        {
-          "query": "why is the sky blue",
-          "expectedDoc": "HumanEye-ColourfulWorld.pdf",
-          "expectedKeywords": ["scattering", "shorter wavelengths", "blue"],
-          "expectedPages": [9, 10],
-          "description": "Sky colour from section 10.6.2"
-        },
-        {
-          "query": "what is the function of iris in human eye",
-          "expectedDoc": "HumanEye-ColourfulWorld.pdf",
-          "expectedKeywords": ["pupil", "muscular", "light"],
-          "expectedPages": [1, 2],
-          "description": "Eye anatomy from section 10.1"
-        },
-        {
-          "query": "what is power of accommodation",
-          "expectedDoc": "HumanEye-ColourfulWorld.pdf",
-          "expectedKeywords": ["focal length", "ciliary", "lens"],
-          "expectedPages": [2],
-          "description": "Accommodation from section 10.1.1"
-        },
-        {
-          "query": "explain coordination in human beings",
-          "expectedDoc": "ControlAndCoordination.pdf",
-          "expectedKeywords": ["nervous", "brain", "spinal"],
-          "description": "Core topic from control & coordination"
-        },
-        {
-          "query": "what are hormones",
-          "expectedDoc": "ControlAndCoordination.pdf",
-          "expectedKeywords": ["chemical", "gland", "blood"],
-          "description": "Hormones from control & coordination"
-        },
-        {
-          "query": "what is reflex action",
-          "expectedDoc": "ControlAndCoordination.pdf",
-          "expectedKeywords": ["involuntary", "spinal cord", "stimulus"],
-          "description": "Reflex arc from control & coordination"
-        },
-        {
-          "query": "what is the function of cerebellum",
-          "expectedDoc": "ControlAndCoordination.pdf",
-          "expectedKeywords": ["balance", "posture", "voluntary"],
-          "description": "Brain parts from control & coordination"
-        }
+      "documents": [
+        "HumanEye-ColourfulWorld.pdf",
+        "ControlAndCoordination.pdf",
+        "MagneticEffects-ElectricCurrent.pdf",
+        "Circles.pdf"
       ]
     }
   }

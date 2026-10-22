@@ -48,6 +48,10 @@ const PATH_COLORS: Record<string, string> = {
   rag: "var(--success)", web_fallback: "var(--info)", no_context: "var(--warn)", concept_explainer: "var(--primary, #7c5ce0)",
 };
 
+const PATH_LABELS: Record<string, string> = {
+  rag: "Chat", web_fallback: "Web Fallback", no_context: "Out of Syllabus", concept_explainer: "Concept Explainer",
+};
+
 export default function ObservabilityTab({ tenantId }: { tenantId?: string | null }) {
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +97,7 @@ export default function ObservabilityTab({ tenantId }: { tenantId?: string | nul
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(4, 1fr)" }}>
         <div className="metric">
           <div className="metric-label">Total queries</div>
           <div className="metric-value">{stats.total.toLocaleString()}</div>
@@ -123,7 +127,7 @@ export default function ObservabilityTab({ tenantId }: { tenantId?: string | nul
                 minWidth: 110, textAlign: "center",
                 background: `color-mix(in srgb, ${PATH_COLORS[p.path] ?? "var(--muted)"} 15%, var(--card))`,
                 color: PATH_COLORS[p.path] ?? "var(--muted)",
-              }}>{p.path}</span>
+              }}>{PATH_LABELS[p.path] ?? p.path}</span>
               <Bar pct={p.pct} color={PATH_COLORS[p.path] ?? "var(--muted)"} />
               <span className="mono text-xs" style={{ minWidth: 60, textAlign: "right" }}>{p.count} ({p.pct}%)</span>
             </div>

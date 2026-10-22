@@ -54,6 +54,7 @@ export default function DocumentsTab({ tenantId }: { tenantId: string }) {
   const [status, setStatus] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [forceReingest, setForceReingest] = useState(false);
   const [modal, setModal] = useState<{ name: string; text: string } | null>(null);
   const [chunksDoc, setChunksDoc] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -70,26 +71,91 @@ export default function DocumentsTab({ tenantId }: { tenantId: string }) {
     return () => { cancelled = true; };
   }, [load]);
 
-  const upload = async (file: File | undefined) => {
-    if (!file) return;
+  const [ingestKeyInput, setIngestKeyInput] = useState("");
+  const [showKeyForm, setShowKeyForm] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  const getIngestKey = (): string | null => {
     let key: string | null = null;
     try { key = localStorage.getItem(INGEST_KEY_STORAGE); } catch { /* ignore */ }
+    return key;
+  };
+
+  const clearIngestKey = () => {
+    try { localStorage.removeItem(INGEST_KEY_STORAGE); } catch { /* ignore */ }
+  };
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    const key = getIngestKey();
     if (!key) {
-      key = window.prompt("Ingest API key");
-      if (!key) return;
-      try { localStorage.setItem(INGEST_KEY_STORAGE, key); } catch { /* ignore */ }
+      setPendingFile(file);
+      setShowKeyForm(true);
+      return;
     }
-    setStatus(`Uploading ${file.name}…`);
+    setStatus(`${forceReingest ? "Re-ingesting" : "Uploading"} ${file.name}…`);
     setUploading(true);
     try {
-      await api.ingest(tenantId, file, key);
-      setStatus(`Indexed ${file.name}`);
+      const result = await api.ingest(tenantId, file, key, forceReingest) as any;
+      const skipped = result?.skipped;
+      if (skipped) {
+        setStatus(`"${file.name}" already exists. Check "Force re-ingest" to replace it.`);
+      } else {
+        setStatus(`Indexed ${file.name}`);
+      }
       load();
     } catch (e) {
-      setStatus(`Upload failed: ${(e as Error).message}`);
+      const msg = (e as Error).message;
+      if (msg.includes("401") || msg.includes("Unauthorized")) {
+        clearIngestKey();
+        setPendingFile(file);
+        setShowKeyForm(true);
+        setStatus("Ingest key was invalid — please enter a new one.");
+      } else {
+        setStatus(`Upload failed: ${msg}`);
+      }
     }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const submitIngestKey = () => {
+    if (!ingestKeyInput.trim()) return;
+    try { localStorage.setItem(INGEST_KEY_STORAGE, ingestKeyInput.trim()); } catch { /* ignore */ }
+    setShowKeyForm(false);
+    setIngestKeyInput("");
+    if (pendingFile) { void upload(pendingFile); setPendingFile(null); }
+  };
+
+  const retryScreenshots = async (docName: string) => {
+    setStatus(`Capturing screenshots for ${docName}…`);
+    setUploading(true);
+    try {
+      const data = await api.retryScreenshots(tenantId, docName);
+      const warnings = data.screenshotWarnings as string[] | undefined;
+      const warnText = warnings?.length ? ` ⚠ ${warnings.join("; ")}` : "";
+      setStatus(`Screenshots for ${docName}: ${data.screenshotsCaptured} captured${warnText}`);
+      load();
+    } catch (e) {
+      setStatus(`Screenshot retry failed: ${(e as Error).message}`);
+    }
+    setUploading(false);
+  };
+
+  const reingest = async (docName: string) => {
+    if (!window.confirm(`Re-ingest "${docName}"? This will re-extract, re-chunk, re-embed, and recapture page screenshots.`)) return;
+    setStatus(`Re-ingesting ${docName}…`);
+    setUploading(true);
+    try {
+      const data = await api.reingest(tenantId, docName) as any;
+      const warnings = data.screenshotWarnings as string[] | undefined;
+      const warnText = warnings?.length ? ` ⚠ ${warnings.join("; ")}` : "";
+      setStatus(`Re-ingested ${docName} — ${data.chunkCount} chunks, ${data.screenshotsCaptured} screenshots${warnText}`);
+      load();
+    } catch (e) {
+      setStatus(`Re-ingest failed: ${(e as Error).message}`);
+    }
+    setUploading(false);
   };
 
   const view = async (name: string) => {
@@ -117,14 +183,35 @@ export default function DocumentsTab({ tenantId }: { tenantId: string }) {
         <p className="muted mt-1 text-sm">Study material is chunked, embedded and indexed for this school.</p>
         {uploading && <div className="progress mx-auto mt-4 max-w-xs"><span /></div>}
         {status && (
-          <p className="mt-3 text-sm font-medium" style={{ color: failed ? "var(--error)" : uploading ? "var(--muted)" : "var(--success)" }}>{status}</p>
+          <p className="mt-3 text-sm font-medium" style={{ color: failed || status.includes("already exists") ? "var(--error)" : uploading ? "var(--muted)" : "var(--success)" }}>{status}</p>
         )}
       </div>
+      <label className="flex items-center gap-2 text-sm" style={{ cursor: "pointer", userSelect: "none" }}>
+        <input type="checkbox" checked={forceReingest} onChange={(e) => setForceReingest(e.target.checked)} />
+        Force re-ingest (replace an already-indexed document with this filename)
+      </label>
+      {showKeyForm && (
+        <div className="card" style={{ padding: 16 }}>
+          <p className="font-semibold mb-2">Enter Ingest API Key</p>
+          <div className="flex gap-2 items-center">
+            <input type="password" className="input" style={{ flex: 1 }} placeholder="Ingest API key"
+              value={ingestKeyInput} onChange={(e) => setIngestKeyInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submitIngestKey(); }} autoFocus />
+            <button className="btn btn-primary btn-sm" onClick={submitIngestKey} disabled={!ingestKeyInput.trim()}>Save</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setShowKeyForm(false); setPendingFile(null); }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {!showKeyForm && getIngestKey() && (
+        <div className="flex justify-end">
+          <button className="link-btn text-xs" onClick={() => { clearIngestKey(); setStatus("Ingest key cleared."); }}>Change ingest key</button>
+        </div>
+      )}
       {error && <p className="alert alert-error">{error}</p>}
       <div className="table-wrap">
         <table className="table">
           <thead><tr>
-            <th>Filename</th><th>Pages</th><th>Chunks</th><th>Enriched</th><th>Indexed</th><th />
+            <th>Filename</th><th>Pages</th><th>Chunks</th><th>Enriched</th><th>Screenshots</th><th>Indexed</th><th />
           </tr></thead>
           <tbody>
             {docs.map((d) => (
@@ -133,15 +220,18 @@ export default function DocumentsTab({ tenantId }: { tenantId: string }) {
                 <td className="mono">{d.pageCount ?? "–"}</td>
                 <td className="mono">{d.chunkCount ?? "–"}</td>
                 <td><span className={`badge ${d.enriched ? "badge-success" : "badge-neutral"}`}>{d.enriched ? "yes" : "no"}</span></td>
-                <td className="muted">{d.indexedAt ?? "–"}</td>
+                <td className="mono">{d.screenshotPages ?? "–"}</td>
+                <td className="muted">{d.indexedAt ? new Date(d.indexedAt.endsWith("Z") ? d.indexedAt : d.indexedAt + "Z").toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false }) : "–"}</td>
                 <td className="text-right" style={{ whiteSpace: "nowrap" }}>
                   <button className="link-btn" onClick={() => setChunksDoc(d.name)} style={{ marginRight: 8 }}>Chunks</button>
-                  {d.enriched && <button className="link-btn" onClick={() => void view(d.name)}>Enriched</button>}
+                  {d.enriched && <button className="link-btn" onClick={() => void view(d.name)} style={{ marginRight: 8 }}>Enriched</button>}
+                  {!d.screenshotPages && <button className="link-btn" onClick={() => void retryScreenshots(d.name)} disabled={uploading} style={{ marginRight: 8 }}>Screenshots</button>}
+                  <button className="link-btn" onClick={() => void reingest(d.name)} disabled={uploading}>Re-ingest</button>
                 </td>
               </tr>
             ))}
             {docs.length === 0 && (
-              <tr><td colSpan={6}>
+              <tr><td colSpan={7}>
                 <div className="empty">
                   <p className="font-semibold">No documents yet</p>
                   <p className="muted text-sm">Upload a PDF above so the chatbot has material to answer from.</p>

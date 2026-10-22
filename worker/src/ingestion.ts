@@ -2,10 +2,10 @@ import type { Env } from "./env";
 import type { TenantConfig } from "./tenant";
 import { TenantStorage } from "./storage";
 import { extractPdfPages } from "./pdf";
-import { chunkText } from "./chunker";
+import { chunkText, semanticChunkText } from "./chunker";
 import { enrichPdfToMarkdown, parseEnrichedPages } from "./ingestionEnrichment";
 import { loadConfig } from "./config";
-import { capturePageScreenshots } from "./screenshots";
+import { captureAndStoreFigurePages } from "./screenshots";
 
 const EMBED_MODEL = "@cf/baai/bge-base-en-v1.5";
 const UPSERT_BATCH = 100;
@@ -95,15 +95,18 @@ export async function handleIngest(
     }
   }
 
-  const chunks = chunkText(pages);
+  const chunks = config.chunkingMode === "semantic"
+    ? await semanticChunkText(pages, async (texts) => {
+        const out = (await env.AI.run(EMBED_MODEL, { text: texts })) as { data?: number[][] };
+        return out.data ?? [];
+      }, { semanticPercentile: config.semanticPercentile })
+    : chunkText(pages);
   if (chunks.length === 0) return json({ error: "No extractable text in PDF" }, 422);
 
-  // Capture screenshots for pages with [Figure:] tags (fails open)
-  const figurePages = new Set<number>();
-  for (const p of pages) {
-    if (p.text.includes("[Figure:")) figurePages.add(p.page);
-  }
-  const capturedPages = await capturePageScreenshots(pages, figurePages, storage, filename, env);
+  const FIGURE_RE = /\[Figure:|Fig\.\s*\d|Figure\s+\d|diagram|illustration/i;
+  const figurePageNumbers = pages.filter((p) => FIGURE_RE.test(p.text)).map((p) => p.page);
+  const screenshotResult = await captureAndStoreFigurePages(figurePageNumbers, pdfBytes, storage, filename, env, docKey);
+  const pageImageKeys = screenshotResult.pageImageKeys;
 
   const embeddings: number[][] = [];
   for (let i = 0; i < chunks.length; i += UPSERT_BATCH) {
@@ -120,10 +123,20 @@ export async function handleIngest(
       startPage: String(chunk.startPage),
       endPage: String(chunk.endPage),
       chunkIndex: String(chunk.chunkIndex),
+      ...(chunk.section ? { section: chunk.section } : {}),
+      ...(chunk.contentType ? { contentType: chunk.contentType } : {}),
     };
-    // Only emit pageImageKey when the screenshot was actually captured
-    if (chunk.pageImageKey && capturedPages.has(chunk.startPage)) {
-      meta.pageImageKey = `${filename}/${chunk.pageImageKey}`;
+    const chunkFigurePages: number[] = [];
+    for (let p = chunk.startPage; p <= chunk.endPage; p++) {
+      if (pageImageKeys.has(p)) {
+        meta.pageImageKey = pageImageKeys.get(p)!;
+      }
+      if (figurePageNumbers.includes(p)) {
+        chunkFigurePages.push(p);
+      }
+    }
+    if (chunkFigurePages.length > 0) {
+      meta.figurePages = chunkFigurePages.join(",");
     }
     return {
       id: storage.vectorId(filename, chunk.chunkIndex),
@@ -145,7 +158,7 @@ export async function handleIngest(
       pageCount: String(pages.length),
       indexedAt: new Date().toISOString(),
       enriched: String(enriched),
-      screenshotPages: capturedPages.size > 0 ? Array.from(capturedPages).join(",") : "",
+      screenshotPages: pageImageKeys.size > 0 ? Array.from(pageImageKeys.keys()).join(",") : "",
     },
   });
   if (enriched) await env.PDF_BUCKET.put(storage.r2Key("cleaned", filename + ".md"), enrichedFullText!);
@@ -156,6 +169,7 @@ export async function handleIngest(
     chunkCount: chunks.length,
     pageCount: pages.length,
     enriched,
-    screenshotsCaptured: capturedPages.size,
+    screenshotsCaptured: pageImageKeys.size,
+    ...(screenshotResult.warnings.length > 0 ? { screenshotWarnings: screenshotResult.warnings } : {}),
   });
 }

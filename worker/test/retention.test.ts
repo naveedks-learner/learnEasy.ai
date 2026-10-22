@@ -54,19 +54,25 @@ describe("cleanupExpiredData", () => {
     const { env, calls } = makeDb({ tenants: ["a"] });
     await cleanupExpiredData(env);
     const del = calls.find((c) => c.sql.startsWith("DELETE FROM transactions"))!;
-    expect(del.sql).toContain("'-90 days'");
-    expect(del.sql).toContain("created_at <");
-    expect(del.args).toEqual(["a"]);
+    expect(del.sql).toContain("created_at < ?");
+    expect(del.args[0]).toBe("a");
+    expect(typeof del.args[1]).toBe("string");
   });
 
-  it("uses each tenant's own dataRetentionDays (keeps newer rows via cutoff)", async () => {
-    const { env, calls } = makeDb({ tenants: ["a", "b"], retention: { a: "30", b: "365" } });
-    await cleanupExpiredData(env);
-    const dels = calls.filter((c) => c.sql.startsWith("DELETE FROM transactions"));
-    expect(dels[0].sql).toContain("'-30 days'");
-    expect(dels[0].args).toEqual(["a"]);
-    expect(dels[1].sql).toContain("'-365 days'");
-    expect(dels[1].args).toEqual(["b"]);
+  it("uses each tenant's own dataRetentionDays with parameterized cutoff dates", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-20T12:00:00.000Z"));
+    try {
+      const { env, calls } = makeDb({ tenants: ["a", "b"], retention: { a: "30", b: "365" } });
+      await cleanupExpiredData(env);
+      const dels = calls.filter((c) => c.sql.startsWith("DELETE FROM transactions"));
+      expect(dels[0].args[0]).toBe("a");
+      expect(dels[0].args[1]).toBe(new Date(Date.now() - 30 * 86_400_000).toISOString());
+      expect(dels[1].args[0]).toBe("b");
+      expect(dels[1].args[1]).toBe(new Date(Date.now() - 365 * 86_400_000).toISOString());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("deletes rate_limits older than one hour using an ISO minute cutoff", async () => {

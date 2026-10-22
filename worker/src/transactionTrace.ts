@@ -13,6 +13,8 @@ export interface TransactionTraceInput {
   provider: string;
   chunks: TraceChunk[];
   tokenEstimate: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
   extra?: Record<string, unknown>;
 }
 
@@ -24,6 +26,8 @@ export interface TransactionRow {
   provider: string;
   trace_json: string;
   token_estimate: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
 }
 
 export function buildTransactionTrace(data: TransactionTraceInput): TransactionRow {
@@ -35,14 +39,16 @@ export function buildTransactionTrace(data: TransactionTraceInput): TransactionR
     provider: data.provider,
     trace_json: JSON.stringify({ chunks: data.chunks, ...(data.extra ?? {}) }),
     token_estimate: data.tokenEstimate,
+    input_tokens: data.inputTokens ?? null,
+    output_tokens: data.outputTokens ?? null,
   };
 }
 
 export async function insertTransaction(row: TransactionRow, tenantId: string, db: D1Database): Promise<void> {
   await db
     .prepare(
-      "INSERT INTO transactions (tenant_id, path_taken, question, answer, model, provider, trace_json, token_estimate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO transactions (tenant_id, path_taken, question, answer, model, provider, trace_json, token_estimate, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
-    .bind(tenantId, row.path_taken, row.question, row.answer, row.model, row.provider, row.trace_json, row.token_estimate)
+    .bind(tenantId, row.path_taken, row.question, row.answer, row.model, row.provider, row.trace_json, row.token_estimate, row.input_tokens, row.output_tokens)
     .run();
 }

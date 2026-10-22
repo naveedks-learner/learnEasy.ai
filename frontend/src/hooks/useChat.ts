@@ -7,6 +7,7 @@ export interface Message {
   content: string;
   docSources?: DocSource[];
   webSources?: WebSource[];
+  relevantFigures?: Array<{ filename: string; page: number }>;
   isError?: boolean;
 }
 
@@ -25,7 +26,7 @@ export function useChat() {
       const r = await postChat(q, answerStyle);
       setMessages((m) => [
         ...m,
-        { id: nextId++, role: "assistant", content: r.answer, docSources: r.docSources, webSources: r.webSources },
+        { id: nextId++, role: "assistant", content: r.answer, docSources: r.docSources, webSources: r.webSources, relevantFigures: r.relevantFigures as Message["relevantFigures"] },
       ]);
     } catch (e) {
       setMessages((m) => [

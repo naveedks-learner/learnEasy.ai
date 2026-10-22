@@ -5,8 +5,10 @@ type Page = { page: number; text: string };
 
 const ENRICH_PROMPT =
   "Convert this PDF to Markdown. Re-emit every page, in order. Begin each page with a marker line " +
-  "`<<<PAGE n>>>` using the real page number. Write formulas as LaTeX, tables as Markdown tables, " +
-  "and tag every figure or diagram as `[Figure: description]`. Output only the Markdown.";
+  "`<<<PAGE n>>>` using the real page number. Write formulas as LaTeX, tables as Markdown tables. " +
+  "IMPORTANT: Tag EVERY image, figure, diagram, graph, chart, illustration, or visual element on every page " +
+  "as `[Figure: detailed description of what the image shows]`. Even if a page has multiple figures, tag each one separately. " +
+  "Do NOT skip any visual element — if it is not pure text, it must get a [Figure:] tag. Output only the Markdown.";
 
 function toBase64(bytes: ArrayBuffer): string {
   const arr = new Uint8Array(bytes);
@@ -32,6 +34,7 @@ export async function enrichPdfToMarkdown(
         Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
+      signal: AbortSignal.timeout(120_000),
       body: JSON.stringify({
         model: config.ingestionModelSlug,
         messages: [
@@ -51,11 +54,15 @@ export async function enrichPdfToMarkdown(
         ],
       }),
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.error(`[enrichment] OpenRouter returned ${resp.status}`);
+      return null;
+    }
     const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
     const text = data.choices?.[0]?.message?.content;
     return typeof text === "string" && text.trim() !== "" ? text : null;
-  } catch {
+  } catch (err) {
+    console.error("[enrichment] PDF enrichment failed:", String(err));
     return null;
   }
 }
@@ -77,7 +84,8 @@ export function parseEnrichedPages(enrichedText: string, plainPages: Page[]): Pa
       if (body !== "" && !byPage.has(mk.page)) byPage.set(mk.page, body);
     });
     return plainPages.map((p) => ({ page: p.page, text: byPage.get(p.page) ?? p.text }));
-  } catch {
+  } catch (err) {
+    console.error("[enrichment] page parsing failed:", String(err));
     return plainPages;
   }
 }

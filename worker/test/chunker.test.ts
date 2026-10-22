@@ -121,14 +121,25 @@ describe("chunkText", () => {
     expect(chunks[0].endPage).toBe(1);
   });
 
-  it("figure pages set pageImageKey even across chunk boundary", () => {
+  it("figure pages set pageImageKey, non-figure pages do not", () => {
     const pages = [
       { page: 1, text: Array(280).fill("w").join(" ") },
       { page: 2, text: "[Figure: diagram] " + Array(280).fill("w").join(" ") },
+      { page: 3, text: Array(280).fill("w").join(" ") },
     ];
     const chunks = chunkText(pages);
-    const figChunk = chunks.find((c) => c.pageImageKey);
-    expect(figChunk).toBeDefined();
-    expect(figChunk!.pageImageKey).toBe("2.png");
+    expect(chunks.some((c) => c.pageImageKey === "2.png")).toBe(true);
+    const page1Chunk = chunks.find((c) => c.startPage === 1 && c.endPage === 1);
+    if (page1Chunk) expect(page1Chunk.pageImageKey).toBeUndefined();
+  });
+
+  it("detects figures via text patterns like Fig. and diagram", () => {
+    const pages = [
+      { page: 1, text: "See Fig. 3 for details " + Array(280).fill("w").join(" ") },
+      { page: 2, text: "This diagram shows " + Array(280).fill("w").join(" ") },
+    ];
+    const chunks = chunkText(pages);
+    expect(chunks.some((c) => c.pageImageKey === "1.png")).toBe(true);
+    expect(chunks.some((c) => c.pageImageKey === "2.png")).toBe(true);
   });
 });

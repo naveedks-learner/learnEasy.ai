@@ -11,6 +11,8 @@ export interface LlmResult {
   model: string;
   provider: string;
   tokenEstimate: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
 }
 
 const WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8";
@@ -39,6 +41,8 @@ export async function generateChatCompletion(
       model: WORKERS_AI_MODEL,
       provider: "workers-ai",
       tokenEstimate: estimateTokens(messages, text),
+      inputTokens: null,
+      outputTokens: null,
     };
   }
 
@@ -54,13 +58,14 @@ export async function generateChatCompletion(
       messages,
       ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
     }),
+    signal: AbortSignal.timeout(60_000),
   });
   if (!resp.ok) {
     throw new Error(`OpenRouter request failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
   }
   const data = (await resp.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
-    usage?: { total_tokens?: number };
+    usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
   };
   const text = data.choices?.[0]?.message?.content;
   if (typeof text !== "string") throw new Error("OpenRouter returned no message content");
@@ -69,5 +74,7 @@ export async function generateChatCompletion(
     model,
     provider: "openrouter",
     tokenEstimate: data.usage?.total_tokens ?? estimateTokens(messages, text),
+    inputTokens: data.usage?.prompt_tokens ?? null,
+    outputTokens: data.usage?.completion_tokens ?? null,
   };
 }

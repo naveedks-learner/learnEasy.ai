@@ -13,6 +13,8 @@ export interface RuntimeConfig {
   explainRetrievalMode: "rag_fallback" | "rag_plus_llm";
   conceptExplainerEnabled: boolean;
   questionPaperModelSlug: string | null;
+  chunkingMode: "semantic" | "fixed";
+  semanticPercentile: number;
   answerStyle: "auto" | "short" | "detailed";
   dataRetentionDays: number;
 }
@@ -26,12 +28,14 @@ export const DEFAULTS: RuntimeConfig = {
   jevRelevanceThreshold: 1.5,
   guardrailEnabled: true,
   llmProvider: "openrouter",
-  llmModelSlug: "openai/gpt-4o-mini",
+  llmModelSlug: "google/gemini-2.5-flash",
   ingestionEnrichmentEnabled: true,
   ingestionModelSlug: "google/gemini-2.5-flash",
   explainRetrievalMode: "rag_plus_llm",
   conceptExplainerEnabled: true,
   questionPaperModelSlug: null,
+  chunkingMode: "semantic",
+  semanticPercentile: 93,
   answerStyle: "auto",
   dataRetentionDays: 90,
 };
@@ -39,6 +43,7 @@ export const DEFAULTS: RuntimeConfig = {
 const ENUMS: Record<string, readonly string[]> = {
   webSearchMode: ["auto", "rag_only", "web_only"],
   llmProvider: ["openrouter", "workers-ai"],
+  chunkingMode: ["semantic", "fixed"],
   explainRetrievalMode: ["rag_fallback", "rag_plus_llm"],
   answerStyle: ["auto", "short", "detailed"],
 };
@@ -76,7 +81,8 @@ export async function loadConfig(tenantId: string, db: D1Database): Promise<Runt
       if (v !== undefined) cfg[row.key] = v;
     }
     return cfg as unknown as RuntimeConfig;
-  } catch {
+  } catch (err) {
+    console.error("[config] failed to load runtime config, using defaults:", String(err));
     return { ...DEFAULTS };
   }
 }

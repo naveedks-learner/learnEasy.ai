@@ -3,8 +3,43 @@ import { postExplain, type ExplainResponse, type PracticeQuestion } from "../../
 import { Formula, Latex } from "../common/Latex";
 import { Thinking } from "../common/LoadingSpinner";
 import { SourceCard } from "../Chat/SourceCard";
+import { PageImage } from "../common/PageImage";
+import { PdfPageRenderer } from "../common/PdfPageRenderer";
 
 const PHRASES = ["Breaking it down…", "Finding the key idea…", "Looking for a good example…", "Making it simple…"];
+
+function collectExplainFigures(r: ExplainResponse): Array<{ filename: string; page: number; imageKey?: string }> {
+  const seen = new Set<string>();
+  const result: Array<{ filename: string; page: number; imageKey?: string }> = [];
+
+  if (r.pageImageKey && r.docSources?.[0]) {
+    const s = r.docSources[0];
+    result.push({ filename: s.filename, page: s.page ?? 0, imageKey: r.pageImageKey });
+    seen.add(`${s.filename}:${s.page ?? 0}`);
+  }
+
+  for (const s of r.docSources ?? []) {
+    if (s.pageImageKey && !seen.has(`${s.filename}:${s.page ?? 0}`)) {
+      seen.add(`${s.filename}:${s.page ?? 0}`);
+      result.push({ filename: s.filename, page: s.page ?? 0, imageKey: s.pageImageKey });
+    }
+    for (const p of s.figurePages ?? []) {
+      const key = `${s.filename}:${p}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push({ filename: s.filename, page: p });
+      }
+    }
+    if (!s.pageImageKey && !s.figurePages?.length && s.hasFigure && s.filename && s.page != null) {
+      const key = `${s.filename}:${s.page}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push({ filename: s.filename, page: s.page });
+      }
+    }
+  }
+  return result;
+}
 
 function Section({ title, icon, children, className = "", delay = 0 }: { title: string; icon?: string; children: ReactNode; className?: string; delay?: number }) {
   return (
@@ -206,6 +241,22 @@ export function ExplainerPage() {
                 </ol>
               </Section>
             )}
+            {(() => {
+              const figures = collectExplainFigures(r);
+              return figures.length > 0 ? (
+                <Section title="From your textbook" icon="📷" delay={nextDelay()}>
+                  <div className="answer-figures">
+                    {figures.map((fp) =>
+                      fp.imageKey ? (
+                        <PageImage key={fp.imageKey} imageKey={fp.imageKey} alt={`Page ${fp.page} of ${fp.filename}`} />
+                      ) : (
+                        <PdfPageRenderer key={`${fp.filename}:${fp.page}`} filename={fp.filename} page={fp.page} alt={`Page ${fp.page} of ${fp.filename}`} />
+                      ),
+                    )}
+                  </div>
+                </Section>
+              ) : null;
+            })()}
             {r.table && (
               <Section title="Table" icon="📊" delay={nextDelay()}>
                 <MarkdownTable text={r.table} />

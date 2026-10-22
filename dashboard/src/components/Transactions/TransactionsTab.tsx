@@ -91,9 +91,9 @@ function PipelineDetail({ t }: { t: Transaction }) {
   return (
     <div className="pipeline">
       <div className="pipeline-summary">
-        <div className="kv"><span className="kv-label">Path</span><span className="badge badge-info">{path}</span></div>
+        <div className="kv"><span className="kv-label">Path</span><span className="badge badge-info">{{ rag: "Chat", no_context: "Out of Syllabus", concept_explainer: "Explainer", web_fallback: "Web Fallback" }[path] ?? path}</span></div>
         <div className="kv"><span className="kv-label">Model</span><span className="mono text-xs">{t.model ?? "–"}</span></div>
-        <div className="kv"><span className="kv-label">Tokens</span><span className="mono text-xs">{t.token_estimate ?? "–"}</span></div>
+        <div className="kv"><span className="kv-label">Tokens</span><span className="mono text-xs">{t.token_estimate ?? "–"}{t.input_tokens != null && t.output_tokens != null ? ` (in: ${t.input_tokens}, out: ${t.output_tokens})` : ""}</span></div>
         {trace?.answerStyle && <div className="kv"><span className="kv-label">Style</span><span>{trace.answerStyle}</span></div>}
         {trace?.groundedIn && <div className="kv"><span className="kv-label">Grounded in</span><span>{trace.groundedIn}</span></div>}
         {trace?.explainRetrievalMode && <div className="kv"><span className="kv-label">Retrieval mode</span><span>{trace.explainRetrievalMode}</span></div>}
@@ -161,7 +161,7 @@ function SummaryCards({ rows }: { rows: Transaction[] }) {
   const ragCount = rows.filter((r) => r.path_taken === "rag").length;
   const ragRate = total > 0 ? Math.round((ragCount / total) * 100) : 0;
   return (
-    <div className="grid gap-3 sm:grid-cols-4 mb-4">
+    <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 16 }}>
       <div className="metric">
         <div className="metric-label">Queries</div>
         <div className="metric-value">{total.toLocaleString()}</div>
@@ -218,7 +218,7 @@ export default function TransactionsTab({ tenantId }: { tenantId: string }) {
               <Fragment key={t.id}>
                 <tr style={{ cursor: "pointer" }} onClick={() => setOpenId(openId === t.id ? null : t.id)}>
                   <td className="muted" style={{ whiteSpace: "nowrap" }}>{toIST(t.created_at)}</td>
-                  <td>{t.path_taken ? <span className="badge badge-info">{t.path_taken}</span> : "–"}</td>
+                  <td>{t.path_taken ? <span className="badge badge-info">{{ rag: "Chat", no_context: "Out of Syllabus", concept_explainer: "Explainer", web_fallback: "Web Fallback" }[t.path_taken] ?? t.path_taken}</span> : "–"}</td>
                   <td>{(t.question ?? "").slice(0, 80)}{(t.question?.length ?? 0) > 80 ? "…" : ""}</td>
                   <td className="mono text-xs">{t.model ?? "–"}</td>
                   <td className="mono">{t.token_estimate ?? "–"}</td>
