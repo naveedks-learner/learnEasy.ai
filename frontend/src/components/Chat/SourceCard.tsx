@@ -1,8 +1,9 @@
 import { tenantParam, type DocSource } from "../../api/client";
+import { getApiBase } from "../../api/platform";
 
 export function SourceCard({ source }: { source: DocSource }) {
   const downloadUrl = source.filename
-    ? `/api/docs/${encodeURIComponent(source.filename)}${tenantParam()}`
+    ? `${getApiBase()}/api/docs/${encodeURIComponent(source.filename)}${tenantParam()}`
     : null;
   return (
     <div className="src">

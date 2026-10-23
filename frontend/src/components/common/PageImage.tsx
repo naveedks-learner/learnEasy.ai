@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { tenantParam } from "../../api/client";
+import { getApiBase } from "../../api/platform";
 
 function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
   useEffect(() => {
@@ -21,7 +22,7 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
 
 export function PageImage({ imageKey, alt }: { imageKey: string; alt?: string }) {
   const [open, setOpen] = useState(false);
-  const src = `/api/images/${imageKey.split("/").map(encodeURIComponent).join("/")}${tenantParam()}`;
+  const src = `${getApiBase()}/api/images/${imageKey.split("/").map(encodeURIComponent).join("/")}${tenantParam()}`;
   const label = alt ?? "Source page from textbook";
   return (
     <>

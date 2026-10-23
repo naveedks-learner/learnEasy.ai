@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getApiBase } from "../../api/platform";
 
 const KEY = "learneasy-consent-v1";
 
@@ -28,7 +29,7 @@ export function ConsentBanner() {
       <p style={{ margin: 0 }}>
         This educational service records your questions to improve answers. No personal information is stored. By
         continuing, you agree to our{" "}
-        <a href="/privacy" target="_blank" rel="noopener noreferrer">
+        <a href={`${getApiBase()}/privacy`} target="_blank" rel="noopener noreferrer">
           Privacy Policy
         </a>
         .

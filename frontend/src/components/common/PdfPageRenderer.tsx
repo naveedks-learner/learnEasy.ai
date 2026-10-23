@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { tenantParam } from "../../api/client";
+import { getApiBase } from "../../api/platform";
 import * as pdfjsLib from "pdfjs-dist";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -46,7 +47,7 @@ export function PdfPageRenderer({ filename, page, alt }: { filename: string; pag
 
   useEffect(() => {
     let cancelled = false;
-    const url = `/api/docs/${encodeURIComponent(filename)}${tenantParam()}`;
+    const url = `${getApiBase()}/api/docs/${encodeURIComponent(filename)}${tenantParam()}`;
 
     getPdf(url)
       .then((pdf) => pdf.getPage(page))

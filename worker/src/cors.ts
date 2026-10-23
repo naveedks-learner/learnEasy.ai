@@ -23,7 +23,9 @@ export function buildCorsHeaders(
     return headers;
   }
 
+  const isCapacitor = origin === "capacitor://localhost" || origin === "http://localhost" || origin === "https://localhost";
   const allowed =
+    isCapacitor ||
     allowedOrigins.includes("*") ||
     allowedOrigins.includes(origin) ||
     (adminHostname !== "" && originHost === adminHostname);

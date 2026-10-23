@@ -1,4 +1,6 @@
-const BASE = ""; // relative — same origin as the worker
+import { getApiBase, getNativeTenantId, isNative, type SchoolInfo } from "./platform";
+
+function getBase(): string { return getApiBase(); }
 
 export interface TenantInfo {
   tenantId: string;
@@ -56,6 +58,8 @@ export interface ExplainResponse {
 }
 
 export function tenantParam(): string {
+  const native = getNativeTenantId();
+  if (native) return `?tenant=${encodeURIComponent(native)}`;
   const t = new URLSearchParams(window.location.search).get("tenant");
   return t ? `?tenant=${encodeURIComponent(t)}` : "";
 }
@@ -63,7 +67,7 @@ export function tenantParam(): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const sep = path.includes("?") ? "&" : "";
   const tp = tenantParam();
-  const url = BASE + path + (tp ? (path.includes("?") ? "&" + tp.slice(1) : tp) : "");
+  const url = getBase() + path + (tp ? (path.includes("?") ? "&" + tp.slice(1) : tp) : "");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);
   let res: Response;
@@ -95,6 +99,13 @@ const post = (body: unknown): RequestInit => ({
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify(body),
 });
+
+export const fetchSchools = async (apiHost: string): Promise<SchoolInfo[]> => {
+  const res = await fetch(`${apiHost}/api/schools`);
+  if (!res.ok) throw new Error("Failed to load schools");
+  const data = (await res.json()) as { schools: SchoolInfo[] };
+  return data.schools;
+};
 
 export const fetchTenant = () => request<TenantInfo>("/api/tenant");
 export const postChat = (question: string, answerStyle?: string) =>

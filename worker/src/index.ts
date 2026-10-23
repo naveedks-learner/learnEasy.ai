@@ -36,6 +36,36 @@ app.get("/health", async (c) => {
 // Public, tenant-independent (registered before tenant resolution, like /health).
 app.get("/privacy", () => privacyPage());
 
+const CAPACITOR_ORIGINS = ["capacitor://localhost", "http://localhost", "https://localhost"];
+
+function capacitorCorsHeaders(origin: string): Record<string, string> {
+  if (!CAPACITOR_ORIGINS.includes(origin)) return {};
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+}
+
+app.options("/api/schools", (c) => {
+  const origin = c.req.header("Origin") ?? "";
+  return new Response(null, { status: 204, headers: capacitorCorsHeaders(origin) });
+});
+
+app.get("/api/schools", async (c) => {
+  const rows = await c.env.DB.prepare(
+    "SELECT tenant_id, name, domain, logo_url, theme_json FROM tenants ORDER BY name",
+  ).all<{ tenant_id: string; name: string; domain: string; logo_url: string | null; theme_json: string | null }>();
+  const origin = c.req.header("Origin") ?? "";
+  const headers: Record<string, string> = { "Cache-Control": "public, max-age=300", ...capacitorCorsHeaders(origin) };
+  const schools = (rows.results ?? []).map((r) => {
+    let theme: { primaryColor?: string; accentColor?: string } = {};
+    try { theme = r.theme_json ? JSON.parse(r.theme_json) : {}; } catch { /* ignore */ }
+    return { tenantId: r.tenant_id, name: r.name, domain: r.domain, logoUrl: r.logo_url ?? "", primaryColor: theme.primaryColor ?? "#2563eb" };
+  });
+  return c.json({ schools }, 200, headers);
+});
+
 app.route("/admin", adminRoutes);
 
 // Static assets (hashed bundles, sw.js) and the admin dashboard SPA must be served before tenant resolution.

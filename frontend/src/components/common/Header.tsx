@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { TenantInfo } from "../../api/client";
+import { getApiBase } from "../../api/platform";
 
 const KEY = "learneasy-theme";
 type Mode = "light" | "dark";
@@ -14,7 +15,7 @@ function initialMode(): Mode {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-export function Header({ tenant }: { tenant: TenantInfo | null }) {
+export function Header({ tenant, onSwitchSchool }: { tenant: TenantInfo | null; onSwitchSchool?: () => void }) {
   const [mode, setMode] = useState<Mode>(initialMode);
 
   useEffect(() => {
@@ -33,11 +34,18 @@ export function Header({ tenant }: { tenant: TenantInfo | null }) {
 
   return (
     <header className="hdr">
-      {tenant?.logoUrl ? <img src={tenant.logoUrl} alt="" className="orb-img" /> : <div className="orb" aria-hidden="true" />}
+      {tenant?.logoUrl ? <img src={tenant.logoUrl.startsWith("/") ? getApiBase() + tenant.logoUrl : tenant.logoUrl} alt="" className="orb-img" /> : <div className="orb" aria-hidden="true" />}
       <div>
         <h1 className="hdr-title">{tenant?.name ?? "learnEasy.ai"}</h1>
         <p className="hdr-sub">Your science &amp; maths study buddy</p>
       </div>
+      {onSwitchSchool && (
+        <button type="button" className="icon-btn" onClick={onSwitchSchool} aria-label="Switch school" title="Switch school" style={{ marginLeft: "auto" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+          </svg>
+        </button>
+      )}
       <button
         type="button"
         className="icon-btn"
